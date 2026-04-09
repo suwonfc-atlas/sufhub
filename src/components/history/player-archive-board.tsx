@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { Crown } from "lucide-react";
@@ -15,6 +15,19 @@ const positionLabels: Record<PlayerPosition | "all", string> = {
   MF: "MF",
   FW: "FW",
 };
+
+function formatBirthDate(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Seoul",
+  }).format(new Date(value));
+}
 
 export function PlayerArchiveBoard({ players }: { players: PlayerArchiveItem[] }) {
   const seasons = useMemo(() => {
@@ -109,6 +122,8 @@ export function PlayerArchiveBoard({ players }: { players: PlayerArchiveItem[] }
           const seasonInfo = player.player_seasons.find(
             (season) => season.season === selectedSeason,
           );
+          const birthDate = formatBirthDate(player.birth_date);
+          const metaParts = [player.name_en, birthDate].filter(Boolean);
 
           return (
             <Link key={player.id} href={`/history/players/${player.id}`}>
@@ -134,7 +149,7 @@ export function PlayerArchiveBoard({ players }: { players: PlayerArchiveItem[] }
                       ) : null}
                     </div>
                     <p className="mt-1 truncate text-sm text-slate-500">
-                      {seasonInfo?.notes ?? "메모 없음"}
+                      {metaParts.length ? metaParts.join(" / ") : "정보 없음"}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

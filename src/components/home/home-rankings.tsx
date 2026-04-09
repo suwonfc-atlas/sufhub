@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 
+import { PlayerDetailModal } from "@/components/players/player-detail-modal";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import type {
   HomeLeagueStandingRow,
@@ -141,6 +142,7 @@ export function HomeRankings({
     "red-cards": [],
   });
   const [playerLoading, setPlayerLoading] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<HomePlayerLeaderRow | null>(null);
 
   const activeLeagueTab = LEAGUE_TABS.find((tab) => tab.id === selectedLeague) ?? LEAGUE_TABS[0];
   const activeLeagueRows = leagueRows[selectedLeague] ?? [];
@@ -390,9 +392,11 @@ export function HomeRankings({
           <div className="max-h-[35rem] overflow-y-auto p-3.5">
             <div className="grid gap-2">
               {activePlayerRows.map((row, index) => (
-                <div
+                <button
                   key={row.id}
-                  className="grid grid-cols-[1.75rem_1fr_auto] items-center gap-2.5 rounded-[16px] bg-[rgba(13,27,112,0.04)] px-3 py-2.5"
+                  type="button"
+                  onClick={() => setSelectedPlayer(row)}
+                  className="grid w-full grid-cols-[1.75rem_1fr_auto] items-center gap-2.5 rounded-[16px] bg-[rgba(13,27,112,0.04)] px-3 py-2.5 text-left transition hover:bg-[rgba(21,93,252,0.1)]"
                 >
                   <span className="text-sm font-black text-[color:var(--brand-navy)]">
                     {index + 1}
@@ -402,7 +406,7 @@ export function HomeRankings({
                     <p className="text-[10px] text-slate-500">{row.position}</p>
                   </div>
                   <span className="text-sm font-black text-slate-950">{row.displayValue}</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -410,6 +414,33 @@ export function HomeRankings({
           <div className="px-4 py-5 text-sm text-slate-500">{activePlayerTab.emptyLabel}</div>
         )}
       </SurfaceCard>
+
+      <PlayerDetailModal
+        open={Boolean(selectedPlayer)}
+        onClose={() => setSelectedPlayer(null)}
+        player={
+          selectedPlayer
+            ? {
+                name: selectedPlayer.name,
+                nameEn: selectedPlayer.nameEn,
+                birthDate: selectedPlayer.birthDate,
+                nationality: selectedPlayer.nationality,
+                bio: selectedPlayer.bio,
+                position: selectedPlayer.position,
+                squadNumber: selectedPlayer.squadNumber,
+                isCaptain: selectedPlayer.isCaptain,
+                appearances: selectedPlayer.appearances,
+                goals: selectedPlayer.goals,
+                assists: selectedPlayer.assists,
+                attackPoints: selectedPlayer.attackPoints,
+                ratingAverage: selectedPlayer.ratingAverage,
+                minutesPlayed: selectedPlayer.minutesPlayed,
+                yellowCards: selectedPlayer.yellowCards,
+                redCards: selectedPlayer.redCards,
+              }
+            : null
+        }
+      />
     </div>
   );
 }

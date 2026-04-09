@@ -1,4 +1,4 @@
-import { createPublicSupabaseClient } from "@/lib/supabase"
+﻿import { createPublicSupabaseClient } from "@/lib/supabase"
 import type {
   Chant,
   CompetitionCode,
@@ -57,8 +57,24 @@ export interface HomeLeagueStandingRow {
 
 export interface HomePlayerLeaderRow {
   id: string
+  playerId: string
   name: string
+  nameEn: string | null
+  birthDate: string | null
+  nationality: string | null
+  profileImageUrl: string | null
+  bio: string | null
+  squadNumber: number | null
+  isCaptain: boolean
   position: string
+  appearances: number
+  goals: number
+  assists: number
+  attackPoints: number
+  ratingAverage: number | null
+  minutesPlayed: number
+  yellowCards: number
+  redCards: number
   displayValue: string
 }
 
@@ -149,16 +165,48 @@ function toHomePlayerRows(stats: PlayerStat[], metric: HomePlayerLeaderMetric) {
   return [...stats]
     .map((stat) => ({
       id: stat.id,
+      playerId: stat.player_id,
       name: stat.player?.name ?? "선수 미등록",
+      nameEn: stat.player?.name_en ?? null,
+      birthDate: stat.player?.birth_date ?? null,
+      nationality: stat.player?.nationality ?? null,
+      profileImageUrl: stat.player?.profile_image_url ?? null,
+      bio: stat.player?.bio ?? null,
+      squadNumber: null as number | null,
+      isCaptain: false,
       position: stat.player?.position ?? "-",
+      appearances: stat.appearances,
+      goals: stat.goals,
+      assists: stat.assists,
+      attackPoints: stat.goals + stat.assists,
+      ratingAverage: stat.rating_average ?? null,
+      minutesPlayed: stat.minutes_played,
+      yellowCards: stat.yellow_cards,
+      redCards: stat.red_cards,
       value: getHomePlayerMetricValue(stat, metric),
     }))
     .filter((row) => row.value !== null)
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || a.name.localeCompare(b.name, "ko"))
     .map((row) => ({
       id: row.id,
+      playerId: row.playerId,
       name: row.name,
+      nameEn: row.nameEn,
+      birthDate: row.birthDate,
+      nationality: row.nationality,
+      profileImageUrl: row.profileImageUrl,
+      bio: row.bio,
+      squadNumber: row.squadNumber,
+      isCaptain: row.isCaptain,
       position: row.position,
+      appearances: row.appearances,
+      goals: row.goals,
+      assists: row.assists,
+      attackPoints: row.attackPoints,
+      ratingAverage: row.ratingAverage,
+      minutesPlayed: row.minutesPlayed,
+      yellowCards: row.yellowCards,
+      redCards: row.redCards,
       displayValue: formatHomePlayerMetricValue(metric, row.value ?? 0),
     }))
 }
@@ -443,7 +491,7 @@ export async function getHomePlayerLeadersData(
 
   const { data: rosterData } = await supabase
     .from("player_seasons")
-    .select("player_id")
+    .select("player_id, squad_number, is_captain")
     .eq("season_id", season.id)
     .eq("team_id", primaryTeam.id)
     .eq("is_active", true)
@@ -457,7 +505,23 @@ export async function getHomePlayerLeadersData(
     .eq("season", seasonCode)
     .in("player_id", playerIds)
 
-  return toHomePlayerRows((statsData ?? []) as PlayerStat[], metric)
+  const rosterMap = new Map(
+    ((rosterData ?? []) as Array<{ player_id: string; squad_number: number | null; is_captain: boolean | null }>).map(
+      (row) => [
+        row.player_id,
+        {
+          squadNumber: row.squad_number ?? null,
+          isCaptain: Boolean(row.is_captain),
+        },
+      ],
+    ),
+  )
+
+  return toHomePlayerRows((statsData ?? []) as PlayerStat[], metric).map((row) => ({
+    ...row,
+    squadNumber: rosterMap.get(row.playerId)?.squadNumber ?? null,
+    isCaptain: rosterMap.get(row.playerId)?.isCaptain ?? false,
+  }))
 }
 
 export async function getHomePageOverview(): Promise<HomePageOverview> {
@@ -711,8 +775,10 @@ export async function getSeasonArchiveData(params?: {
 
     const matchesSelectedTeam =
       match.home_team_id === selectedTeamId || match.away_team_id === selectedTeamId
+    const isSelectedLeaguePlayoff =
+      match.league_code === selectedLeague && match.competition_code === selectedLeague && match.round === 99
 
-    if (!matchesSelectedTeam) {
+    if (!matchesSelectedTeam && !isSelectedLeaguePlayoff) {
       return false
     }
 
@@ -1110,7 +1176,7 @@ export async function getHomePageData() {
   const latestMatch = [...matches].reverse().find((match) => match.status === "finished") ?? null
   const currentSeason = standings[0]?.season ?? ""
   const seasonStandings = standings.filter((standing) => standing.season === currentSeason)
-  const homeTeamName = seasonStandings.find((standing) => standing.team_name.includes("수원"))?.team_name ?? "수원FC"
+  const homeTeamName = seasonStandings.find((standing) => standing.team_name.includes("??륁뜚"))?.team_name ?? "??륁뜚FC"
   const suwonIndex = seasonStandings.findIndex((standing) => standing.team_name === homeTeamName)
   const standingsFocus =
     suwonIndex === -1
