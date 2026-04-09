@@ -221,6 +221,7 @@ export function MatchesAdminBoard({
       : ((activeId === "new" ? editorCompetitionCode : form.league_code) as LeagueCode);
   const effectiveCompetition =
     activeId === "new" ? getCompetitionLabel(effectiveCompetitionCode) : form.competition;
+  const isPlayoffRound = effectiveCompetitionCode === "K1" && form.round === "99";
 
   const seasonFilterOptions = useMemo(
     () => [{ label: TEXT.allSeasons, value: "all" }, ...seasons.map((season) => ({ label: season.code, value: season.id }))],
@@ -264,10 +265,12 @@ export function MatchesAdminBoard({
             assignment.season_id === form.season_id &&
             (effectiveCompetitionCode === "KOREA_CUP"
               ? true
-              : assignment.league_code === effectiveLeagueCode),
+              : isPlayoffRound
+                ? assignment.league_code === "K1" || assignment.league_code === "K2"
+                : assignment.league_code === effectiveLeagueCode),
         )
         .map((assignment) => assignment.team_id),
-    [effectiveCompetitionCode, effectiveLeagueCode, form.season_id, seasonTeamLeagues],
+    [effectiveCompetitionCode, effectiveLeagueCode, form.season_id, isPlayoffRound, seasonTeamLeagues],
   );
 
   const teamOptions = useMemo(
@@ -501,7 +504,15 @@ export function MatchesAdminBoard({
                 label={TEXT.round}
                 type="number"
                 value={form.round}
-                onChange={(event) => setForm((current) => ({ ...current, round: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    round: event.target.value,
+                    home_team_id: "",
+                    away_team_id: "",
+                    stadium_name: "",
+                  }))
+                }
               />
             )}
             <AdminInputField
@@ -513,7 +524,7 @@ export function MatchesAdminBoard({
               }
             />
             <AdminSelectField
-              key={`home-${form.season_id}-${effectiveCompetitionCode}`}
+              key={`home-${form.season_id}-${effectiveCompetitionCode}-${form.round}`}
               label={TEXT.home}
               value={form.home_team_id}
               onChange={(event) =>
@@ -526,7 +537,7 @@ export function MatchesAdminBoard({
               options={teamOptions}
             />
             <AdminSelectField
-              key={`away-${form.season_id}-${effectiveCompetitionCode}`}
+              key={`away-${form.season_id}-${effectiveCompetitionCode}-${form.round}`}
               label={TEXT.away}
               value={form.away_team_id}
               onChange={(event) =>

@@ -185,6 +185,7 @@ export function buildStandings(
       match.status === "finished" &&
       match.home_score !== null &&
       match.away_score !== null &&
+      match.round !== 99 &&
       match.league_code !== null &&
       match.competition_code !== "KOREA_CUP",
   );

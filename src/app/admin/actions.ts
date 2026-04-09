@@ -1260,8 +1260,10 @@ export async function saveMatch(input: MatchMutationInput): Promise<AdminMutatio
       return failure("코리아컵 경기는 단계명을 입력해 주세요.");
     }
 
+    const isPlayoffMatch = competitionCode === "K1" && payload.round === 99;
+
     const [homeAssigned, awayAssigned] = await Promise.all([
-      competitionCode === "KOREA_CUP"
+      competitionCode === "KOREA_CUP" || isPlayoffMatch
         ? ensureSeasonTeamMembership(admin.supabase, payload.season_id, payload.home_team_id)
         : ensureSeasonTeamAssignment(
             admin.supabase,
@@ -1269,7 +1271,7 @@ export async function saveMatch(input: MatchMutationInput): Promise<AdminMutatio
             payload.league_code!,
             payload.home_team_id,
           ),
-      competitionCode === "KOREA_CUP"
+      competitionCode === "KOREA_CUP" || isPlayoffMatch
         ? ensureSeasonTeamMembership(admin.supabase, payload.season_id, payload.away_team_id)
         : ensureSeasonTeamAssignment(
             admin.supabase,
@@ -1283,6 +1285,8 @@ export async function saveMatch(input: MatchMutationInput): Promise<AdminMutatio
       return failure(
         competitionCode === "KOREA_CUP"
           ? "선택한 시즌에 배정된 팀만 코리아컵 경기로 등록할 수 있습니다."
+          : isPlayoffMatch
+            ? "선택한 시즌에 배정된 팀만 플레이오프 경기로 등록할 수 있습니다."
           : "선택한 시즌과 리그에 배정된 팀만 경기로 등록할 수 있습니다.",
       )
     }

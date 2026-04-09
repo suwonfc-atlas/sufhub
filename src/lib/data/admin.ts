@@ -5,6 +5,7 @@ import type {
   HistoryTimeline,
   Inquiry,
   CompetitionCode,
+  LeagueCode,
   LeagueMatch,
   MapPlace,
   Notice,
@@ -17,6 +18,7 @@ import type {
   Season,
   SeasonTeamLeague,
   Stadium,
+  Standing,
   Supporter,
   Team,
   TicketArchive,
@@ -26,6 +28,7 @@ import type {
 import { buildStandings } from "./league"
 
 export const ADMIN_PAGE_SIZE = 10
+const ADMIN_BULK_FETCH_SIZE = 1000
 
 export interface AdminPageResult<T> {
   items: T[]
@@ -33,6 +36,13 @@ export interface AdminPageResult<T> {
   pageSize: number
   totalCount: number
   totalPages: number
+}
+
+export interface AdminStandingsResult {
+  seasons: Season[]
+  selectedSeason: string
+  selectedLeague: LeagueCode
+  standings: Standing[]
 }
 
 function normalizePage(page?: number) {
@@ -74,6 +84,36 @@ function getPageRange(page?: number) {
   return { page: safePage, from, to }
 }
 
+async function fetchAllLeagueMatches(supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>) {
+  const items: Array<LeagueMatch & { season_record?: Season | null }> = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("league_matches")
+      .select(
+        "*, season_record:seasons(*), home_team:teams!league_matches_home_team_id_fkey(*), away_team:teams!league_matches_away_team_id_fkey(*)",
+      )
+      .order("match_date", { ascending: false })
+      .range(from, from + ADMIN_BULK_FETCH_SIZE - 1)
+
+    if (error) {
+      return [] as Array<LeagueMatch & { season_record?: Season | null }>
+    }
+
+    const batch = (data ?? []) as Array<LeagueMatch & { season_record?: Season | null }>
+    items.push(...batch)
+
+    if (batch.length < ADMIN_BULK_FETCH_SIZE) {
+      break
+    }
+
+    from += ADMIN_BULK_FETCH_SIZE
+  }
+
+  return items
+}
+
 async function getAdminLeagueData() {
   const supabase = await createServerSupabaseClient()
   if (!supabase) {
@@ -86,11 +126,12 @@ async function getAdminLeagueData() {
   }
 
   try {
+    const leagueMatchesPromise = fetchAllLeagueMatches(supabase)
     const [
       { data: teams, error: teamsError },
       { data: seasons, error: seasonsError },
       { data: seasonTeamLeagues, error: assignmentsError },
-      { data: leagueMatches, error: matchesError },
+      leagueMatches,
     ] = await Promise.all([
       supabase.from("teams").select("*").order("created_at", { ascending: false }),
       supabase
@@ -101,15 +142,10 @@ async function getAdminLeagueData() {
         .from("season_team_leagues")
         .select("*, season:seasons(*), team:teams(*)")
         .order("created_at", { ascending: false }),
-      supabase
-        .from("league_matches")
-        .select(
-          "*, season_record:seasons(*), home_team:teams!league_matches_home_team_id_fkey(*), away_team:teams!league_matches_away_team_id_fkey(*)",
-        )
-        .order("match_date", { ascending: false }),
+      leagueMatchesPromise,
     ])
 
-    if (teamsError || seasonsError || assignmentsError || matchesError) {
+    if (teamsError || seasonsError || assignmentsError) {
       return {
         teams: [] as Team[],
         seasons: [] as Season[],
@@ -122,7 +158,7 @@ async function getAdminLeagueData() {
       teams: (teams ?? []) as Team[],
       seasons: (seasons ?? []) as Season[],
       seasonTeamLeagues: (seasonTeamLeagues ?? []) as SeasonTeamLeague[],
-      leagueMatches: ((leagueMatches ?? []) as Array<LeagueMatch & { season_record?: Season | null }>).map(
+      leagueMatches: (leagueMatches as Array<LeagueMatch & { season_record?: Season | null }>).map(
         (match) => ({
           ...match,
           season: match.season_record?.code ?? "",
@@ -272,9 +308,96 @@ export async function getAdminMatchesPage(
   return createPageResult(items, count, safePage)
 }
 
-export async function getAdminStandings() {
-  const { teams, seasonTeamLeagues, leagueMatches } = await getAdminLeagueData()
-  return buildStandings(teams, seasonTeamLeagues, leagueMatches)
+export async function getAdminStandings(
+  seasonCode?: string,
+  leagueCode: LeagueCode = "K1",
+): Promise<AdminStandingsResult> {
+  const supabase = await createServerSupabaseClient()
+  if (!supabase) {
+    return {
+      seasons: [],
+      selectedSeason: seasonCode ?? "",
+      selectedLeague: leagueCode,
+      standings: [],
+    }
+  }
+
+  const { data: seasonsData, error: seasonsError } = await supabase
+    .from("seasons")
+    .select("*")
+    .order("code", { ascending: false })
+
+  if (seasonsError) {
+    return {
+      seasons: [],
+      selectedSeason: seasonCode ?? "",
+      selectedLeague: leagueCode,
+      standings: [],
+    }
+  }
+
+  const seasons = (seasonsData ?? []) as Season[]
+  const selectedSeasonRecord =
+    seasons.find((season) => season.code === seasonCode) ??
+    seasons.find((season) => season.is_current) ??
+    seasons[0] ??
+    null
+
+  if (!selectedSeasonRecord) {
+    return {
+      seasons,
+      selectedSeason: seasonCode ?? "",
+      selectedLeague: leagueCode,
+      standings: [],
+    }
+  }
+
+  const [{ data: seasonTeamLeaguesData, error: assignmentsError }, { data: leagueMatchesData, error: matchesError }] =
+    await Promise.all([
+      supabase
+        .from("season_team_leagues")
+        .select("*, season:seasons(*), team:teams(*)")
+        .eq("season_id", selectedSeasonRecord.id)
+        .eq("league_code", leagueCode),
+      supabase
+        .from("league_matches")
+        .select(
+          "*, season_record:seasons(*), home_team:teams!league_matches_home_team_id_fkey(*), away_team:teams!league_matches_away_team_id_fkey(*)",
+        )
+        .eq("season_id", selectedSeasonRecord.id)
+        .eq("league_code", leagueCode)
+        .order("match_date", { ascending: false }),
+    ])
+
+  if (assignmentsError || matchesError) {
+    return {
+      seasons,
+      selectedSeason: selectedSeasonRecord.code,
+      selectedLeague: leagueCode,
+      standings: [],
+    }
+  }
+
+  const seasonTeamLeagues = (seasonTeamLeaguesData ?? []) as SeasonTeamLeague[]
+  const teams = seasonTeamLeagues
+    .map((assignment) => assignment.team)
+    .filter((team): team is Team => Boolean(team))
+  const leagueMatches = ((leagueMatchesData ?? []) as Array<LeagueMatch & { season_record?: Season | null }>).map(
+    (match) => ({
+      ...match,
+      season: match.season_record?.code ?? selectedSeasonRecord.code,
+    }),
+  ) as LeagueMatch[]
+
+  return {
+    seasons,
+    selectedSeason: selectedSeasonRecord.code,
+    selectedLeague: leagueCode,
+    standings: buildStandings(teams, seasonTeamLeagues, leagueMatches).filter(
+      (standing) =>
+        standing.season === selectedSeasonRecord.code && standing.league_code === leagueCode,
+    ),
+  }
 }
 
 export async function getAdminSeatZones() {
