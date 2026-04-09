@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Script from "next/script";
 import { ChevronUp, LocateFixed, MapPin, Search } from "lucide-react";
@@ -92,13 +92,18 @@ const SUWON_STADIUM_CENTER: Point = {
   longitude: 127.01139,
 };
 
-const CATEGORY_LABELS: Record<MapPlace["category"], string> = {
-  stadium: "경기장",
-  food: "맛집",
-  parking: "주차",
-  stay: "숙소",
-  etc: "기타",
-};
+function normalizeCategory(category: MapPlace["category"]): "restaurant" | "cafe" | "other" {
+  if (category === "restaurant" || category === "food") return "restaurant";
+  if (category === "cafe") return "cafe";
+  return "other";
+}
+
+function getCategoryLabel(category: MapPlace["category"]) {
+  const normalized = normalizeCategory(category);
+  if (normalized === "restaurant") return "식당";
+  if (normalized === "cafe") return "카페";
+  return "기타";
+}
 
 function clampToServiceArea(point: Point): Point {
   return {
@@ -152,21 +157,39 @@ function getPopupCenterPoint(point: Point) {
   });
 }
 
-function createMarkerIcon(selected: boolean) {
+function createMarkerIcon(category: MapPlace["category"], selected: boolean) {
   const size = selected ? 34 : 28;
-  const centerSize = selected ? 10 : 8;
+  const normalizedCategory = normalizeCategory(category);
+  const markerColor =
+    normalizedCategory === "restaurant" ? "#ef4444" : normalizedCategory === "cafe" ? "#1539fc" : "#facc15";
+  const width = size;
+  const height = size + 14;
+  const centerX = width / 2;
+  const topY = 3;
+  const leftX = 3;
+  const rightX = width - 3;
+  const circleBottomY = size - 1;
+  const tipY = height - 2;
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size + 14}" viewBox="0 0 ${size} ${size + 14}" fill="none">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none">
       <defs>
-        <filter id="shadow" x="0" y="0" width="${size}" height="${size + 14}" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+        <filter id="shadow" x="0" y="0" width="${width}" height="${height}" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
           <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="rgba(15,23,42,0.22)"/>
         </filter>
       </defs>
       <g filter="url(#shadow)">
-        <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 3}" fill="#ef4444" stroke="#1539fc" stroke-width="3"/>
-        <circle cx="${size / 2}" cy="${size / 2}" r="${centerSize / 2 + 3}" fill="white" opacity="0.95"/>
-        <circle cx="${size / 2}" cy="${size / 2}" r="${centerSize / 2}" fill="#facc15"/>
-        <path d="M${size / 2 - 7} ${size - 2} L${size / 2 + 7} ${size - 2} L${size / 2} ${size + 12} Z" fill="#1539fc"/>
+        <path
+          d="M ${centerX} ${tipY}
+             C ${centerX + 7} ${circleBottomY + 1}, ${rightX} ${circleBottomY - 5}, ${rightX} ${size / 2}
+             C ${rightX} 8, ${centerX + 7} ${topY}, ${centerX} ${topY}
+             C ${centerX - 7} ${topY}, ${leftX} 8, ${leftX} ${size / 2}
+             C ${leftX} ${circleBottomY - 5}, ${centerX - 7} ${circleBottomY + 1}, ${centerX} ${tipY} Z"
+          fill="${markerColor}"
+          stroke="#111827"
+          stroke-width="1"
+          stroke-linejoin="round"
+        />
+        <circle cx="${centerX}" cy="${size / 2}" r="${selected ? 5.5 : 4.5}" fill="#ffffff" fill-opacity="0.94" />
       </g>
     </svg>
   `;
@@ -261,7 +284,7 @@ function createInfoWindowContent(place: MapPlace) {
           font-size: 10px;
           font-weight: 800;
           color: #1539fc;
-        ">${escapeHtml(CATEGORY_LABELS[place.category])}</span>
+        ">${escapeHtml(getCategoryLabel(place.category))}</span>
         <button
           type="button"
           onclick="window.__closeCastleClubInfo && window.__closeCastleClubInfo()"
@@ -360,22 +383,26 @@ export function CastleClubMap({ places }: { places: MapPlace[] }) {
   const [currentPosition, setCurrentPosition] = useState<Point | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLocating, setIsLocating] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<"restaurant" | "cafe" | "other" | null>(null);
 
   const referencePoint = useMemo(() => currentPosition ?? SUWON_STADIUM_CENTER, [currentPosition]);
 
   const filteredPlaces = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    const categoryFiltered = activeCategory
+      ? places.filter((place) => normalizeCategory(place.category) === activeCategory)
+      : places;
 
     if (!query) {
-      return places;
+      return categoryFiltered;
     }
 
-    return places.filter((place) =>
+    return categoryFiltered.filter((place) =>
       [place.name, place.address, place.description, place.benefit_info, place.menu_items.join(" ")]
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(query)),
     );
-  }, [places, searchQuery]);
+  }, [activeCategory, places, searchQuery]);
 
   const sortedPlaces = useMemo(
     () =>
@@ -497,7 +524,7 @@ export function CastleClubMap({ places }: { places: MapPlace[] }) {
         map,
         position: new naverMaps.LatLng(place.latitude, place.longitude),
         icon: {
-          url: createMarkerIcon(isSelected),
+          url: createMarkerIcon(place.category, isSelected),
           size: new naverMaps.Size(isSelected ? 34 : 28, isSelected ? 48 : 42),
           scaledSize: new naverMaps.Size(isSelected ? 34 : 28, isSelected ? 48 : 42),
           anchor: new naverMaps.Point(isSelected ? 17 : 14, isSelected ? 48 : 42),
@@ -644,37 +671,64 @@ export function CastleClubMap({ places }: { places: MapPlace[] }) {
         )}
 
         <div className="absolute inset-x-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-10">
-          <div className="flex items-center gap-2.5">
-            <label className="flex min-w-0 flex-1 items-center gap-3 rounded-[22px] bg-[rgba(255,255,255,0.97)] px-4 py-3 shadow-[0_14px_34px_rgba(15,23,42,0.12)] backdrop-blur">
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="주변 장소 검색"
-                className="min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-700 outline-none placeholder:text-slate-400"
-              />
-              <Search className="h-5 w-5 text-[color:var(--brand-blue)]" />
-            </label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleMoveToStadium}
-                className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[rgba(255,255,255,0.97)] shadow-[0_14px_34px_rgba(15,23,42,0.12)] backdrop-blur"
-                aria-label="수원종합운동장으로 이동"
-              >
-                <StadiumIcon />
-              </button>
-              <button
-                type="button"
-                onClick={handleLocateCurrentPosition}
-                disabled={isLocating}
-                className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[rgba(255,255,255,0.97)] shadow-[0_14px_34px_rgba(15,23,42,0.12)] backdrop-blur"
-                aria-label="내 위치로 이동"
-              >
-                <LocateFixed
-                  className={cn("h-5 w-5 text-[color:var(--brand-blue)]", isLocating && "animate-pulse")}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2.5">
+              <label className="flex min-w-0 flex-1 items-center gap-3 rounded-[22px] bg-[rgba(255,255,255,0.97)] px-4 py-3 shadow-[0_14px_34px_rgba(15,23,42,0.12)] backdrop-blur">
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="주변 장소 검색"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-700 outline-none placeholder:text-slate-400"
                 />
-              </button>
+                <Search className="h-5 w-5 text-[color:var(--brand-blue)]" />
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleMoveToStadium}
+                  className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[rgba(255,255,255,0.97)] shadow-[0_14px_34px_rgba(15,23,42,0.12)] backdrop-blur"
+                  aria-label="수원종합운동장으로 이동"
+                >
+                  <StadiumIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLocateCurrentPosition}
+                  disabled={isLocating}
+                  className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[rgba(255,255,255,0.97)] shadow-[0_14px_34px_rgba(15,23,42,0.12)] backdrop-blur"
+                  aria-label="내 위치로 이동"
+                >
+                  <LocateFixed
+                    className={cn("h-5 w-5 text-[color:var(--brand-blue)]", isLocating && "animate-pulse")}
+                  />
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {([
+                ["restaurant", "식당"],
+                ["cafe", "카페"],
+                ["other", "기타"],
+              ] as const).map(([value, label]) => {
+                const active = activeCategory === value;
+
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setActiveCategory((current) => (current === value ? null : value))}
+                    className={cn(
+                      "rounded-full px-4 py-2 text-xs font-black shadow-[0_10px_24px_rgba(15,23,42,0.1)] backdrop-blur transition",
+                      active
+                        ? "bg-[color:var(--brand-navy)] text-white"
+                        : "bg-[rgba(255,255,255,0.97)] text-slate-700",
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

@@ -10,5 +10,6 @@ export const adminSections = [
   { href: "/admin/map", label: "캐슬클럽" },
   { href: "/admin/chants", label: "응원가" },
   { href: "/admin/notices", label: "공지사항" },
+  { href: "/admin/supporters", label: "후원회" },
   { href: "/admin/inquiries", label: "문의 관리" },
 ];

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Black_Han_Sans, Noto_Sans_KR } from "next/font/google";
+import Script from "next/script";
 
 import { AppFrame } from "@/components/layout/app-frame";
 import { siteConfig } from "@/lib/constants/site";
@@ -73,6 +74,20 @@ export default function RootLayout({
       lang="ko"
       className={`${bodyFont.variable} ${displayFont.variable} antialiased`}
     >
+      <head>
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-29R0ZKJ56K"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-29R0ZKJ56K');
+          `}
+        </Script>
+      </head>
       <body>
         <AppFrame>{children}</AppFrame>
       </body>

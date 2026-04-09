@@ -79,6 +79,7 @@ export interface SeasonTeamStatsSyncInput {
 export interface MatchJsonSyncInput {
   season_id: string;
   league_code: LeagueCode;
+  status: MatchStatus;
   matches_payload_json: string;
 }
 
@@ -247,6 +248,13 @@ export interface NoticeMutationInput {
   is_pinned: boolean;
 }
 
+export interface SupporterMutationInput {
+  id?: string;
+  name: string;
+  amount: string;
+  donated_at: string;
+}
+
 export interface InquiryStatusMutationInput {
   id: string;
   status: "inquiry" | "processing" | "completed";
@@ -316,6 +324,20 @@ function toNullableIsoString(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   return new Date(`${trimmed}:00+09:00`).toISOString();
+}
+
+function toDateOnlyString(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error("날짜를 입력해 주세요.");
+  }
+
+  const parsed = new Date(`${trimmed}T00:00:00+09:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("날짜 형식이 올바르지 않습니다.");
+  }
+
+  return trimmed;
 }
 
 function getRequiredServerEnv(name: string) {
@@ -669,7 +691,7 @@ type ExternalLeagueMatch = {
   away_score?: number | string | null
 }
 
-const TEAM_NAME_ALIASES: Record<string, string> = {
+const EXTERNAL_TEAM_NAME_ALIASES: Record<string, string> = {
   수원: "삼성",
   서울E: "E랜",
   충북청주: "청주",
@@ -677,9 +699,9 @@ const TEAM_NAME_ALIASES: Record<string, string> = {
   충남아산: "아산",
 }
 
-function normalizeTeamLookupName(value: string) {
+function normalizeExternalTeamName(value: string) {
   const trimmed = normalizeString(value)
-  return TEAM_NAME_ALIASES[trimmed] ?? trimmed
+  return EXTERNAL_TEAM_NAME_ALIASES[trimmed] ?? trimmed
 }
 
 function parseRequiredScore(value: number | string | null | undefined, label: string) {
@@ -967,8 +989,8 @@ export async function syncSeasonLeagueMatchesFromJson(
 
       if (!team) continue
 
-      if (team.name) teamLookup.set(normalizeTeamLookupName(team.name), team)
-      if (team.short_name) teamLookup.set(normalizeTeamLookupName(team.short_name), team)
+      if (team.name) teamLookup.set(normalizeString(team.name), team)
+      if (team.short_name) teamLookup.set(normalizeString(team.short_name), team)
     }
 
     let syncedCount = 0
@@ -984,8 +1006,8 @@ export async function syncSeasonLeagueMatchesFromJson(
         return failure("라운드 값이 올바르지 않은 경기가 있습니다.")
       }
 
-      const homeName = normalizeTeamLookupName(item.homeTeamName ?? item.home_name ?? "")
-      const awayName = normalizeTeamLookupName(item.awayTeamName ?? item.away_name ?? "")
+      const homeName = normalizeExternalTeamName(item.homeTeamName ?? item.home_name ?? "")
+      const awayName = normalizeExternalTeamName(item.awayTeamName ?? item.away_name ?? "")
 
       if (!homeName || !awayName) {
         return failure("홈팀 또는 원정팀 정보가 없는 경기가 있습니다.")
@@ -999,8 +1021,15 @@ export async function syncSeasonLeagueMatchesFromJson(
       }
 
       const matchDate = parseExternalMatchDateTime(item.gameDateTime ?? item.match_date)
-      const homeScore = parseRequiredScore(item.homeTeamScore ?? item.home_score, "홈팀 점수")
-      const awayScore = parseRequiredScore(item.awayTeamScore ?? item.away_score, "원정팀 점수")
+      const status: MatchStatus = input.status === "scheduled" ? "scheduled" : "finished"
+      const homeScore =
+        status === "finished"
+          ? parseRequiredScore(item.homeTeamScore ?? item.home_score, "홈팀 점수")
+          : null
+      const awayScore =
+        status === "finished"
+          ? parseRequiredScore(item.awayTeamScore ?? item.away_score, "원정팀 점수")
+          : null
 
       const payload = {
         season_id: seasonId,
@@ -1016,7 +1045,7 @@ export async function syncSeasonLeagueMatchesFromJson(
         stadium_name: homeTeam.home_stadium_name ?? null,
         home_score: homeScore,
         away_score: awayScore,
-        status: "finished" as MatchStatus,
+        status,
         competition: leagueCode === "K2" ? "K리그2" : "K리그1",
       }
 
@@ -1881,6 +1910,94 @@ export async function deleteNotice(id: string): Promise<AdminMutationResult> {
 
   revalidatePaths(["/admin", "/admin/notices", "/notices"]);
   return success("공지사항을 삭제했습니다.");
+}
+
+async function resequenceSupporters(supabase: ServerSupabase) {
+  const { data, error } = await supabase
+    .from("supporters")
+    .select("id")
+    .order("display_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const supporters = (data ?? []) as Array<{ id: string }>;
+  for (const [index, supporter] of supporters.entries()) {
+    const nextOrder = index + 1;
+    const { error: updateError } = await supabase
+      .from("supporters")
+      .update({ display_order: nextOrder })
+      .eq("id", supporter.id);
+
+    if (updateError) {
+      throw updateError;
+    }
+  }
+}
+
+export async function saveSupporter(input: SupporterMutationInput): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const payload = {
+      name: normalizeString(input.name),
+      amount: parseInteger(input.amount, "후원금액"),
+      donated_at: toDateOnlyString(input.donated_at),
+    };
+
+    if (input.id) {
+      const { error } = await admin.supabase
+        .from("supporters")
+        .update(payload)
+        .eq("id", input.id);
+
+      if (error) return failure(error.message);
+    } else {
+      const { data: latest, error: latestError } = await admin.supabase
+        .from("supporters")
+        .select("display_order")
+        .order("display_order", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestError) return failure(latestError.message);
+
+      const displayOrder =
+        ((latest as { display_order?: number } | null)?.display_order ?? 0) + 1;
+
+      const { error } = await admin.supabase.from("supporters").insert({
+        ...payload,
+        display_order: displayOrder,
+      });
+
+      if (error) return failure(error.message);
+    }
+
+    revalidatePaths(["/admin/supporters", "/notices"]);
+    return success(input.id ? "후원회 명단을 수정했습니다." : "후원회 명단을 추가했습니다.");
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : "후원회 명단 저장 중 오류가 발생했습니다.");
+  }
+}
+
+export async function deleteSupporter(id: string): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const { error } = await admin.supabase.from("supporters").delete().eq("id", id);
+    if (error) return failure(error.message);
+
+    await resequenceSupporters(admin.supabase);
+
+    revalidatePaths(["/admin/supporters", "/notices"]);
+    return success("후원회 명단을 삭제했습니다.");
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : "후원회 명단 삭제 중 오류가 발생했습니다.");
+  }
 }
 
 export async function updateInquiryStatus(

@@ -1,4 +1,12 @@
-export type MapPlaceCategory = "stadium" | "food" | "parking" | "stay" | "etc"
+export type MapPlaceCategory =
+  | "restaurant"
+  | "cafe"
+  | "other"
+  | "stadium"
+  | "food"
+  | "parking"
+  | "stay"
+  | "etc"
 
 export interface MapPlace {
   id: string
@@ -315,6 +323,16 @@ export interface Notice {
   is_active: boolean
   is_pinned: boolean
   published_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Supporter {
+  id: string
+  name: string
+  amount: number
+  donated_at: string
+  display_order: number
   created_at: string
   updated_at: string
 }

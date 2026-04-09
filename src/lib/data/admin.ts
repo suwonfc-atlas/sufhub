@@ -17,6 +17,7 @@ import type {
   Season,
   SeasonTeamLeague,
   Stadium,
+  Supporter,
   Team,
   TicketArchive,
   Uniform,
@@ -527,6 +528,21 @@ export async function getAdminNoticesPage(page = 1) {
 
   if (error) return createEmptyPageResult<Notice>(safePage)
   return createPageResult((data ?? []) as Notice[], count, safePage)
+}
+
+export async function getAdminSupportersPage(page = 1) {
+  const supabase = await createServerSupabaseClient()
+  if (!supabase) return createEmptyPageResult<Supporter>(page)
+
+  const { from, to, page: safePage } = getPageRange(page)
+  const { data, count, error } = await supabase
+    .from("supporters")
+    .select("*", { count: "exact" })
+    .order("display_order", { ascending: true })
+    .range(from, to)
+
+  if (error) return createEmptyPageResult<Supporter>(safePage)
+  return createPageResult((data ?? []) as Supporter[], count, safePage)
 }
 
 export async function getAdminInquiriesPage(

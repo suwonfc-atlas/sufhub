@@ -24,10 +24,23 @@ import type { MapPlace } from "@/types";
 
 type MapPlaceForm = MapPlaceMutationInput;
 
+function normalizeCategory(category: MapPlace["category"]): "restaurant" | "cafe" | "other" {
+  if (category === "restaurant" || category === "food") return "restaurant";
+  if (category === "cafe") return "cafe";
+  return "other";
+}
+
+function formatCategoryLabel(category: MapPlace["category"]) {
+  const normalized = normalizeCategory(category);
+  if (normalized === "restaurant") return "식당";
+  if (normalized === "cafe") return "카페";
+  return "기타";
+}
+
 function createEmptyMapPlaceForm(): MapPlaceForm {
   return {
     name: "",
-    category: "food",
+    category: "restaurant",
     naver_place_url: "",
     address: "",
     phone: "",
@@ -43,7 +56,7 @@ function createMapPlaceForm(place: MapPlace): MapPlaceForm {
   return {
     id: place.id,
     name: place.name,
-    category: place.category,
+    category: normalizeCategory(place.category),
     naver_place_url: place.naver_place_url ?? "",
     address: place.address ?? "",
     phone: place.phone ?? "",
@@ -75,7 +88,7 @@ export function MapPlacesAdminBoard({
         id: place.id,
         cells: [
           place.name,
-          place.category,
+          formatCategoryLabel(place.category),
           place.address ?? "-",
           place.phone ?? "-",
           place.is_active ? "노출" : "숨김",
@@ -149,12 +162,12 @@ export function MapPlacesAdminBoard({
   };
 
   return activeId ? (
-    <SurfaceCard className="grid gap-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+    <SurfaceCard className="grid max-w-5xl gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
           <h2 className="text-xl font-black text-slate-950">{form.id ? "장소 수정" : "장소 추가"}</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            주소를 저장하면 위도와 경도는 자동으로 조회되어 함께 저장됩니다.
+          <p className="text-sm text-slate-500">
+            주소를 저장하면 위도와 경도가 자동으로 조회되어 함께 저장됩니다.
           </p>
         </div>
         <button
@@ -166,6 +179,7 @@ export function MapPlacesAdminBoard({
           목록으로
         </button>
       </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         <AdminInputField
           label="이름"
@@ -182,11 +196,9 @@ export function MapPlacesAdminBoard({
             }))
           }
           options={[
-            { label: "경기장", value: "stadium" },
-            { label: "맛집", value: "food" },
-            { label: "주차", value: "parking" },
-            { label: "숙소", value: "stay" },
-            { label: "기타", value: "etc" },
+            { label: "식당", value: "restaurant" },
+            { label: "카페", value: "cafe" },
+            { label: "기타", value: "other" },
           ]}
         />
         <AdminInputField
@@ -229,11 +241,12 @@ export function MapPlacesAdminBoard({
           }
           className="md:col-span-2"
         />
+
         <div className="grid gap-3 md:col-span-2">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-slate-700">메뉴</p>
-              <p className="text-xs text-slate-500">항목별로 한 줄씩 추가해 주세요.</p>
+              <p className="text-xs text-slate-500">항목별로 줄 단위로 추가해 주세요.</p>
             </div>
             <button
               type="button"
@@ -265,6 +278,7 @@ export function MapPlacesAdminBoard({
             ))}
           </div>
         </div>
+
         <div className="self-start md:col-span-2">
           <AdminCheckboxField
             label="노출 여부"
@@ -273,7 +287,9 @@ export function MapPlacesAdminBoard({
           />
         </div>
       </div>
+
       <AdminFormMessage message={result?.message ?? null} status={result?.status} />
+
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
@@ -286,10 +302,10 @@ export function MapPlacesAdminBoard({
       </div>
     </SurfaceCard>
   ) : (
-    <div className="grid gap-6">
+    <div className="grid gap-3">
       <AdminDataTable
         title="캐슬클럽 장소 목록"
-        description="캐슬클럽 지도와 목록에 노출되는 장소를 관리합니다."
+        description="캐슬클럽 지도에 노출되는 장소를 관리합니다."
         columns={["이름", "카테고리", "주소", "연락처", "노출"]}
         rows={rows}
         selectedIds={selectedIds}

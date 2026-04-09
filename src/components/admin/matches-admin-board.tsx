@@ -208,6 +208,7 @@ export function MatchesAdminBoard({
   const [syncLeagueCode, setSyncLeagueCode] = useState<LeagueCode>(
     initialCompetitionTab === "K2" ? "K2" : "K1",
   );
+  const [syncMatchStatus, setSyncMatchStatus] = useState<"scheduled" | "finished">("finished");
   const [matchesPayloadJson, setMatchesPayloadJson] = useState("");
   const [syncResult, setSyncResult] = useState<AdminMutationResult | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -385,6 +386,7 @@ export function MatchesAdminBoard({
       const nextResult = await syncSeasonLeagueMatchesFromJson({
         season_id: syncSeasonId,
         league_code: syncLeagueCode,
+        status: syncMatchStatus,
         matches_payload_json: matchesPayloadJson,
       });
 
@@ -668,7 +670,7 @@ export function MatchesAdminBoard({
           <p className="text-sm leading-5 text-slate-600">{TEXT.jsonSyncDescription}</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           <AdminSelectField
             label={TEXT.season}
             value={syncSeasonId}
@@ -682,6 +684,15 @@ export function MatchesAdminBoard({
             options={[
               { label: "K1", value: "K1" },
               { label: "K2", value: "K2" },
+            ]}
+          />
+          <AdminSelectField
+            label="반영 상태"
+            value={syncMatchStatus}
+            onChange={(event) => setSyncMatchStatus(event.target.value as "scheduled" | "finished")}
+            options={[
+              { label: "종료", value: "finished" },
+              { label: "예정", value: "scheduled" },
             ]}
           />
         </div>

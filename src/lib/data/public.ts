@@ -20,6 +20,7 @@ import type {
   SeasonTeamLeague,
   Stadium,
   Standing,
+  Supporter,
   Team,
   TicketArchive,
   Uniform,
@@ -830,6 +831,34 @@ export async function getNotices() {
 
   if (error) return [] as Notice[]
   return (data ?? []) as Notice[]
+}
+
+export async function getNoticeById(id: string) {
+  const supabase = createPublicSupabaseClient()
+  if (!supabase) return null as Notice | null
+
+  const { data, error } = await supabase
+    .from("notices")
+    .select("*")
+    .eq("id", id)
+    .eq("is_active", true)
+    .maybeSingle()
+
+  if (error) return null as Notice | null
+  return (data ?? null) as Notice | null
+}
+
+export async function getSupporters() {
+  const supabase = createPublicSupabaseClient()
+  if (!supabase) return [] as Supporter[]
+
+  const { data, error } = await supabase
+    .from("supporters")
+    .select("*")
+    .order("display_order", { ascending: true })
+
+  if (error) return [] as Supporter[]
+  return (data ?? []) as Supporter[]
 }
 
 export async function getPlayerStats() {
