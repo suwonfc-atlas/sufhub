@@ -252,7 +252,7 @@ export function ChantsBoard({ chants }: { chants: Chant[] }) {
         </div>
 
         <SurfaceCard className="overflow-hidden p-0">
-          <div className="grid gap-0">
+          <div className="grid max-h-[27.5rem] gap-0 overflow-y-auto">
             {chants.map((chant) => {
               const isCurrent = chant.id === currentTrackId;
               const alreadyAdded = selectedPlaylist?.trackIds.includes(chant.id) ?? false;
@@ -400,7 +400,7 @@ export function ChantsBoard({ chants }: { chants: Chant[] }) {
           {selectedPlaylist ? (
             selectedPlaylistTracks.length ? (
               isTouchDevice ? (
-                <div>
+                <div className="max-h-[27.5rem] overflow-y-auto">
                   {selectedPlaylistTracks.map((chant, index) => {
                     const isCurrent = chant.id === currentTrackId;
 
@@ -485,7 +485,11 @@ export function ChantsBoard({ chants }: { chants: Chant[] }) {
                 <DragDropContext onDragEnd={handlePlaylistDragEnd}>
                   <Droppable droppableId={selectedPlaylist.id}>
                     {(provided) => (
-                      <div ref={provided.innerRef} {...provided.droppableProps}>
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className="max-h-[27.5rem] overflow-y-auto"
+                      >
                         {selectedPlaylistTracks.map((chant, index) => {
                           const isCurrent = chant.id === currentTrackId;
 
