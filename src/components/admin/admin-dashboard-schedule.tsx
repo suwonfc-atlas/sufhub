@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { X } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 
 import {
   saveMatch,
+  saveMatchLineup,
   type AdminMutationResult,
+  type MatchLineupMutationInput,
   type MatchMutationInput,
 } from "@/app/admin/actions";
 import {
@@ -17,7 +19,7 @@ import {
 import { AdminSectionTabs } from "@/components/admin/admin-section-tabs";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { cn, formatRoundLabel } from "@/lib/utils";
-import type { LeagueMatch, MatchStatus, Season, Team } from "@/types";
+import type { LeagueMatch, MatchLineup, MatchStatus, PlayerSeason, Season, Team } from "@/types";
 
 function formatDateLabel(value: string) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -92,18 +94,52 @@ function createMatchForm(match: LeagueMatch): MatchMutationInput {
   };
 }
 
+function createLineupForm(
+  match: LeagueMatch | null,
+  primaryTeamId: string | null,
+  lineups: MatchLineup[],
+): MatchLineupMutationInput | null {
+  if (!match || !primaryTeamId) {
+    return null;
+  }
+
+  if (match.home_team_id !== primaryTeamId && match.away_team_id !== primaryTeamId) {
+    return null;
+  }
+
+  const saved = lineups.find((item) => item.match_id === match.id && item.team_id === primaryTeamId);
+
+  return {
+    match_id: match.id,
+    team_id: primaryTeamId,
+    starters_player_ids: saved?.starters_player_ids ?? [],
+    bench_player_ids: saved?.bench_player_ids ?? [],
+  };
+}
+
 function getTeamName(team: Team | null | undefined, teamId: string, teams: Team[]) {
   return team?.name ?? teams.find((item) => item.id === teamId)?.name ?? "팀 미지정";
+}
+
+function getRosterLabel(playerSeason: PlayerSeason) {
+  const numberLabel = playerSeason.squad_number ? `${playerSeason.squad_number}` : "-";
+  return `${numberLabel} ${playerSeason.player?.name ?? "선수"}`;
 }
 
 export function AdminDashboardSchedule({
   matches,
   teams,
   seasons,
+  primaryTeamId,
+  roster,
+  lineups,
 }: {
   matches: LeagueMatch[];
   teams: Team[];
   seasons: Season[];
+  primaryTeamId: string | null;
+  roster: PlayerSeason[];
+  lineups: MatchLineup[];
 }) {
   const router = useRouter();
   const defaultSeasonId = seasons.find((season) => season.is_current)?.id ?? seasons[0]?.id ?? "";
@@ -121,9 +157,15 @@ export function AdminDashboardSchedule({
   const [form, setForm] = useState<MatchMutationInput | null>(
     initialMatch ? createMatchForm(initialMatch) : null,
   );
+  const [lineupForm, setLineupForm] = useState<MatchLineupMutationInput | null>(
+    createLineupForm(initialMatch, primaryTeamId, lineups),
+  );
   const [result, setResult] = useState<AdminMutationResult | null>(null);
+  const [lineupResult, setLineupResult] = useState<AdminMutationResult | null>(null);
+  const [lineupHint, setLineupHint] = useState<string | null>(null);
   const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isSavingMatch, startMatchTransition] = useTransition();
+  const [isSavingLineup, startLineupTransition] = useTransition();
 
   const seasonOptions = useMemo(
     () => seasons.map((season) => ({ label: season.code, value: season.id })),
@@ -148,10 +190,45 @@ export function AdminDashboardSchedule({
   const selectedMatch =
     visibleMatches.find((match) => match.id === selectedMatchId) ?? visibleMatches[0] ?? null;
 
+  const seasonRoster = useMemo(() => {
+    if (!selectedMatch || !primaryTeamId) return [] as PlayerSeason[];
+
+    return roster
+      .filter(
+        (item) =>
+          item.team_id === primaryTeamId &&
+          item.season_id === selectedMatch.season_id &&
+          item.player,
+      )
+      .sort((left, right) => {
+        const leftNumber = left.squad_number ?? 999;
+        const rightNumber = right.squad_number ?? 999;
+        if (leftNumber !== rightNumber) return leftNumber - rightNumber;
+        return (left.player?.name ?? "").localeCompare(right.player?.name ?? "", "ko");
+      });
+  }, [primaryTeamId, roster, selectedMatch]);
+
+  const lineupPlayersById = useMemo(
+    () => new Map(seasonRoster.map((item) => [item.player_id, item])),
+    [seasonRoster],
+  );
+
+  const starters = useMemo(
+    () => (lineupForm?.starters_player_ids ?? []).map((id) => lineupPlayersById.get(id)).filter(Boolean) as PlayerSeason[],
+    [lineupForm, lineupPlayersById],
+  );
+  const bench = useMemo(
+    () => (lineupForm?.bench_player_ids ?? []).map((id) => lineupPlayersById.get(id)).filter(Boolean) as PlayerSeason[],
+    [lineupForm, lineupPlayersById],
+  );
+
   const handleSelectMatch = (match: LeagueMatch) => {
     setSelectedMatchId(match.id);
     setForm(createMatchForm(match));
+    setLineupForm(createLineupForm(match, primaryTeamId, lineups));
     setResult(null);
+    setLineupResult(null);
+    setLineupHint(null);
     setMobileEditorOpen(true);
   };
 
@@ -168,7 +245,10 @@ export function AdminDashboardSchedule({
     setSelectedMonthKey(nextMonthKey);
     setSelectedMatchId(nextMatch?.id ?? null);
     setForm(nextMatch ? createMatchForm(nextMatch) : null);
+    setLineupForm(createLineupForm(nextMatch, primaryTeamId, lineups));
     setResult(null);
+    setLineupResult(null);
+    setLineupHint(null);
     setMobileEditorOpen(false);
   };
 
@@ -181,14 +261,56 @@ export function AdminDashboardSchedule({
     setSelectedMonthKey(monthKey);
     setSelectedMatchId(nextMatch?.id ?? null);
     setForm(nextMatch ? createMatchForm(nextMatch) : null);
+    setLineupForm(createLineupForm(nextMatch, primaryTeamId, lineups));
     setResult(null);
+    setLineupResult(null);
+    setLineupHint(null);
     setMobileEditorOpen(false);
   };
 
-  const handleSave = () => {
+  const assignLineupPlayer = (playerId: string, target: "starter" | "bench" | "remove") => {
+    setLineupForm((current) => {
+      if (!current) return current;
+
+      const startersSet = current.starters_player_ids.filter((id) => id !== playerId);
+      const benchSet = current.bench_player_ids.filter((id) => id !== playerId);
+
+      if (target === "starter") {
+        if (!current.starters_player_ids.includes(playerId) && startersSet.length >= 11) {
+          setLineupHint("선발은 최대 11명까지 선택할 수 있습니다.");
+          return current;
+        }
+
+        setLineupHint(null);
+        return {
+          ...current,
+          starters_player_ids: [...startersSet, playerId],
+          bench_player_ids: benchSet,
+        };
+      }
+
+      if (target === "bench") {
+        setLineupHint(null);
+        return {
+          ...current,
+          starters_player_ids: startersSet,
+          bench_player_ids: [...benchSet, playerId],
+        };
+      }
+
+      setLineupHint(null);
+      return {
+        ...current,
+        starters_player_ids: startersSet,
+        bench_player_ids: benchSet,
+      };
+    });
+  };
+
+  const handleSaveMatch = () => {
     if (!form) return;
 
-    startTransition(async () => {
+    startMatchTransition(async () => {
       const next = await saveMatch(form);
       setResult(next);
       if (next.status === "success") {
@@ -197,7 +319,19 @@ export function AdminDashboardSchedule({
     });
   };
 
-  const renderEditor = (compact = false) => {
+  const handleSaveLineup = () => {
+    if (!lineupForm) return;
+
+    startLineupTransition(async () => {
+      const next = await saveMatchLineup(lineupForm);
+      setLineupResult(next);
+      if (next.status === "success") {
+        router.refresh();
+      }
+    });
+  };
+
+  const renderMatchEditor = () => {
     if (!form || !selectedMatch) {
       return (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
@@ -207,16 +341,20 @@ export function AdminDashboardSchedule({
     }
 
     return (
-      <>
+      <div className="grid gap-4">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
           <p className="text-sm font-semibold text-slate-900">
             {getTeamName(selectedMatch.home_team, selectedMatch.home_team_id, teams)} vs{" "}
             {getTeamName(selectedMatch.away_team, selectedMatch.away_team_id, teams)}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            {selectedMatch.season} · {selectedMatch.league_code}
-            {formatRoundLabel(selectedMatch.round) ? ` · ${formatRoundLabel(selectedMatch.round)}` : ""} ·{" "}
-            {formatDateLabel(selectedMatch.match_date)}
+            {selectedMatch.season} / {selectedMatch.competition_code}
+            {formatRoundLabel(selectedMatch.round)
+              ? ` / ${formatRoundLabel(selectedMatch.round)}`
+              : selectedMatch.stage_label
+                ? ` / ${selectedMatch.stage_label}`
+                : ""}{" "}
+            / {formatDateLabel(selectedMatch.match_date)}
           </p>
         </div>
 
@@ -235,7 +373,7 @@ export function AdminDashboardSchedule({
               { label: "종료", value: "finished" },
             ]}
           />
-          <div className={cn("grid gap-4", compact ? "grid-cols-1" : "grid-cols-1")}>
+          <div className="grid gap-4">
             <AdminInputField
               label="홈팀 점수"
               type="number"
@@ -272,19 +410,187 @@ export function AdminDashboardSchedule({
 
         <button
           type="button"
-          disabled={isPending}
-          onClick={handleSave}
+          disabled={isSavingMatch}
+          onClick={handleSaveMatch}
           className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white"
         >
-          {isPending ? "저장 중..." : "경기 결과 저장"}
+          {isSavingMatch ? "저장 중..." : "경기 결과 저장"}
         </button>
-      </>
+      </div>
+    );
+  };
+
+  const renderLineupEditor = () => {
+    if (!selectedMatch) {
+      return null;
+    }
+
+    if (!lineupForm || !primaryTeamId) {
+      return (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+          내 팀 경기에서만 라인업을 등록할 수 있습니다.
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="text-sm font-semibold text-slate-900">라인업 등록</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {selectedMatch.season} 시즌 내 팀 선수 중 선발 11명과 후보를 선택해 저장합니다.
+          </p>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-bold text-slate-900">선발 11명</p>
+              <span className="text-xs font-semibold text-slate-500">{starters.length}/11</span>
+            </div>
+            {starters.length ? (
+              <div className="grid gap-2">
+                {starters.map((player) => (
+                  <div
+                    key={`starter-${player.id}`}
+                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"
+                  >
+                    <span className="font-semibold text-slate-800">{getRosterLabel(player)}</span>
+                    <button
+                      type="button"
+                      onClick={() => assignLineupPlayer(player.player_id, "remove")}
+                      className="text-xs font-semibold text-rose-600"
+                    >
+                      제외
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">아직 선발 선수가 없습니다.</p>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-bold text-slate-900">후보</p>
+              <span className="text-xs font-semibold text-slate-500">{bench.length}명</span>
+            </div>
+            {bench.length ? (
+              <div className="grid gap-2">
+                {bench.map((player) => (
+                  <div
+                    key={`bench-${player.id}`}
+                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"
+                  >
+                    <span className="font-semibold text-slate-800">{getRosterLabel(player)}</span>
+                    <button
+                      type="button"
+                      onClick={() => assignLineupPlayer(player.player_id, "remove")}
+                      className="text-xs font-semibold text-rose-600"
+                    >
+                      제외
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">후보를 추가할 수 있습니다.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-bold text-slate-900">이번 시즌 선수 선택</p>
+            <span className="text-xs text-slate-500">선발 또는 후보로 배치하세요.</span>
+          </div>
+
+          {seasonRoster.length ? (
+            <div className="grid gap-2">
+              {seasonRoster.map((player) => {
+                const isStarter = lineupForm.starters_player_ids.includes(player.player_id);
+                const isBench = lineupForm.bench_player_ids.includes(player.player_id);
+
+                return (
+                  <div
+                    key={player.id}
+                    className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {getRosterLabel(player)}
+                        {player.is_captain ? " (C)" : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {player.player?.position ?? "-"}
+                        {player.is_injured && player.injury_detail ? ` / ${player.injury_detail}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => assignLineupPlayer(player.player_id, "starter")}
+                        className={cn(
+                          "rounded-full px-3 py-1.5 text-xs font-semibold",
+                          isStarter
+                            ? "bg-sky-600 text-white"
+                            : "bg-white text-slate-700 ring-1 ring-slate-200",
+                        )}
+                      >
+                        선발
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => assignLineupPlayer(player.player_id, "bench")}
+                        className={cn(
+                          "rounded-full px-3 py-1.5 text-xs font-semibold",
+                          isBench
+                            ? "bg-amber-500 text-white"
+                            : "bg-white text-slate-700 ring-1 ring-slate-200",
+                        )}
+                      >
+                        후보
+                      </button>
+                      {(isStarter || isBench) ? (
+                        <button
+                          type="button"
+                          onClick={() => assignLineupPlayer(player.player_id, "remove")}
+                          className="rounded-full bg-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-700"
+                        >
+                          제거
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+              선택한 시즌의 내 팀 선수 데이터가 없습니다.
+            </div>
+          )}
+        </div>
+
+        <AdminFormMessage message={lineupHint} status="error" />
+        <AdminFormMessage message={lineupResult?.message ?? null} status={lineupResult?.status} />
+
+        <button
+          type="button"
+          disabled={isSavingLineup}
+          onClick={handleSaveLineup}
+          className="rounded-full bg-[color:var(--brand-blue)] px-5 py-2.5 text-sm font-semibold text-white"
+        >
+          {isSavingLineup ? "저장 중..." : "라인업 저장"}
+        </button>
+      </div>
     );
   };
 
   return (
     <>
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.95fr)]">
         <SurfaceCard className="flex h-fit flex-col gap-4 self-start">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-1">
@@ -293,7 +599,7 @@ export function AdminDashboardSchedule({
               </p>
               <h2 className="text-2xl font-black text-slate-950">전체 경기 일정</h2>
               <p className="text-sm text-slate-600">
-                시즌과 월을 고른 뒤 경기를 눌러 결과를 바로 입력할 수 있습니다.
+                시즌과 월을 선택한 뒤 경기를 누르면 결과와 라인업을 바로 입력할 수 있습니다.
               </p>
             </div>
             <div className="w-full max-w-[220px] shrink-0">
@@ -335,8 +641,12 @@ export function AdminDashboardSchedule({
                   >
                     <div className="flex items-center justify-between gap-3 text-xs font-semibold text-slate-500">
                       <span>
-                        {match.season} · {match.league_code}
-                        {formatRoundLabel(match.round) ? ` · ${formatRoundLabel(match.round)}` : ""}
+                        {match.season} / {match.competition_code}
+                        {formatRoundLabel(match.round)
+                          ? ` / ${formatRoundLabel(match.round)}`
+                          : match.stage_label
+                            ? ` / ${match.stage_label}`
+                            : ""}
                       </span>
                       <span>{formatDateLabel(match.match_date)}</span>
                     </div>
@@ -382,38 +692,42 @@ export function AdminDashboardSchedule({
             </p>
             <h3 className="text-2xl font-black text-slate-950">경기 결과 입력</h3>
           </div>
-          {renderEditor()}
+          {renderMatchEditor()}
+          {selectedMatch ? <div className="h-px bg-slate-100" /> : null}
+          {renderLineupEditor()}
         </SurfaceCard>
       </div>
 
-      {mobileEditorOpen && form && selectedMatch ? (
+      {mobileEditorOpen && selectedMatch ? (
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
             onClick={() => setMobileEditorOpen(false)}
             className="absolute inset-0 bg-slate-950/40"
-            aria-label="결과 입력 닫기"
+            aria-label="편집기 닫기"
           />
           <div className="absolute inset-x-0 bottom-0 rounded-t-[28px] bg-white px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 shadow-[0_-24px_64px_rgba(15,23,42,0.22)]">
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-sky-700">
-                  Result Editor
+                  Match Editor
                 </p>
-                <h3 className="text-xl font-black text-slate-950">경기 결과 입력</h3>
+                <h3 className="text-xl font-black text-slate-950">경기 편집</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setMobileEditorOpen(false)}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-700"
-                aria-label="결과 입력 닫기"
+                aria-label="편집기 닫기"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="grid max-h-[72vh] gap-4 overflow-y-auto pb-2">
-              {renderEditor(true)}
+              {renderMatchEditor()}
+              <div className="h-px bg-slate-100" />
+              {renderLineupEditor()}
             </div>
           </div>
         </div>

@@ -234,6 +234,16 @@ export interface LeagueMatch {
   away_team?: Team | null
 }
 
+export interface MatchLineup {
+  id: string
+  match_id: string
+  team_id: string
+  starters_player_ids: string[]
+  bench_player_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
 export interface Match {
   id: string
   season: string

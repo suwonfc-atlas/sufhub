@@ -1,10 +1,7 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
 
-import { cn } from "@/lib/utils";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { cn } from "@/lib/utils";
 import type { LeagueCode, Season, Standing } from "@/types";
 
 interface StandingsAdminBoardProps {
@@ -14,33 +11,31 @@ interface StandingsAdminBoardProps {
   standings: Standing[];
 }
 
+function buildHref(season: string, league: LeagueCode) {
+  const params = new URLSearchParams();
+  params.set("season", season);
+  params.set("league", league);
+
+  return `/admin/standings?${params.toString()}`;
+}
+
 export function StandingsAdminBoard({
   seasons,
   selectedSeason,
   selectedLeague,
   standings,
 }: StandingsAdminBoardProps) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  const buildHref = (season: string, league: LeagueCode) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("season", season);
-    params.set("league", league);
-    return `${pathname}?${params.toString()}`;
-  };
-
   return (
     <div className="grid auto-rows-min gap-3">
       {seasons.length ? (
         <div className="inline-flex max-w-full flex-wrap items-start content-start self-start gap-2">
           {seasons.map((season) => {
             const active = season.code === selectedSeason;
+
             return (
               <Link
                 key={season.code}
                 href={buildHref(season.code, selectedLeague)}
-                scroll={false}
                 className={cn(
                   "inline-flex h-7 items-center rounded-full px-3 text-sm font-semibold leading-none transition",
                   active
@@ -58,11 +53,11 @@ export function StandingsAdminBoard({
       <div className="inline-flex max-w-full flex-wrap items-start content-start self-start gap-2">
         {(["K1", "K2"] as LeagueCode[]).map((league) => {
           const active = league === selectedLeague;
+
           return (
             <Link
               key={league}
               href={buildHref(selectedSeason, league)}
-              scroll={false}
               className={cn(
                 "inline-flex h-7 items-center rounded-full px-3 text-sm font-semibold leading-none transition",
                 active
@@ -88,11 +83,13 @@ export function StandingsAdminBoard({
           <table className="min-w-full text-left">
             <thead className="bg-slate-950 text-sm text-white">
               <tr>
-                {["순위", "팀", "승점", "경기", "승", "무", "패", "득", "실", "득실"].map((header) => (
-                  <th key={header} className="px-4 py-3 font-semibold">
-                    {header}
-                  </th>
-                ))}
+                {["순위", "팀", "승점", "경기", "승", "무", "패", "득", "실", "득실"].map(
+                  (header) => (
+                    <th key={header} className="px-4 py-3 font-semibold">
+                      {header}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>

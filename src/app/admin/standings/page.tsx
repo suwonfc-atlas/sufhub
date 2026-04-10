@@ -1,4 +1,4 @@
-import { unstable_noStore as noStore } from "next/cache";
+﻿import { unstable_noStore as noStore } from "next/cache";
 
 import { StandingsAdminBoard } from "@/components/admin/standings-admin-board";
 import { getAdminStandings } from "@/lib/data/admin";

@@ -83,6 +83,13 @@ export interface MatchJsonSyncInput {
   matches_payload_json: string;
 }
 
+export interface MatchLineupMutationInput {
+  match_id: string;
+  team_id: string;
+  starters_player_ids: string[];
+  bench_player_ids: string[];
+}
+
 export interface PlayerMutationInput {
   id?: string;
   name: string;
@@ -1313,6 +1320,90 @@ export async function deleteMatch(id: string): Promise<AdminMutationResult> {
 
   revalidatePaths(["/", "/admin", "/admin/seasons", "/admin/matches", "/matches", "/matches/schedule", "/matches/standings"]);
   return success("경기를 삭제했습니다.");
+}
+
+export async function saveMatchLineup(
+  input: MatchLineupMutationInput,
+): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const matchId = normalizeString(input.match_id);
+    const teamId = normalizeString(input.team_id);
+    const starters = Array.from(
+      new Set(input.starters_player_ids.map((id) => normalizeString(id)).filter(Boolean)),
+    );
+    const bench = Array.from(
+      new Set(input.bench_player_ids.map((id) => normalizeString(id)).filter(Boolean)),
+    ).filter((id) => !starters.includes(id));
+
+    if (starters.length !== 11) {
+      return failure("선발 11명을 정확히 선택해 주세요.");
+    }
+
+    const { data: match, error: matchError } = await admin.supabase
+      .from("league_matches")
+      .select("id, season_id, home_team_id, away_team_id, status")
+      .eq("id", matchId)
+      .single();
+
+    if (matchError) return failure(matchError.message);
+    if (match.home_team_id !== teamId && match.away_team_id !== teamId) {
+      return failure("해당 경기의 참가 팀 라인업만 저장할 수 있습니다.");
+    }
+
+    const selectedPlayerIds = [...starters, ...bench];
+    if (!selectedPlayerIds.length) {
+      return failure("라인업 선수를 선택해 주세요.");
+    }
+
+    const { data: rosterRows, error: rosterError } = await admin.supabase
+      .from("player_seasons")
+      .select("player_id")
+      .eq("season_id", match.season_id)
+      .eq("team_id", teamId)
+      .eq("is_active", true)
+      .in("player_id", selectedPlayerIds);
+
+    if (rosterError) return failure(rosterError.message);
+
+    const validPlayerIds = new Set(
+      ((rosterRows ?? []) as Array<{ player_id: string }>).map((row) => row.player_id),
+    );
+
+    const invalidPlayer = selectedPlayerIds.find((id) => !validPlayerIds.has(id));
+    if (invalidPlayer) {
+      return failure("선택한 시즌의 해당 팀 선수만 라인업으로 저장할 수 있습니다.");
+    }
+
+    const payload = {
+      match_id: matchId,
+      team_id: teamId,
+      starters_player_ids: starters,
+      bench_player_ids: bench,
+    };
+
+    const { error } = await admin.supabase
+      .from("match_lineups")
+      .upsert(payload, { onConflict: "match_id,team_id" });
+
+    if (error) return failure(error.message);
+
+    revalidatePaths([
+      "/",
+      "/admin",
+      "/matches",
+      "/matches/schedule",
+      "/history/seasons",
+    ]);
+
+    return success("라인업을 저장했습니다.");
+  } catch (error) {
+    return failure(
+      error instanceof Error ? error.message : "라인업 저장 중 오류가 발생했습니다.",
+    );
+  }
 }
 
 export async function savePlayer(input: PlayerMutationInput): Promise<AdminMutationResult> {

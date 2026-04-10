@@ -7,6 +7,7 @@ import type {
   HistoryTimeline,
   LeagueCode,
   LeagueMatch,
+  MatchLineup,
   MapPlace,
   Match,
   Notice,
@@ -86,6 +87,52 @@ export interface HomePageOverview {
   initialLeagueRows: HomeLeagueStandingRow[]
   initialPlayerRows: HomePlayerLeaderRow[]
   primaryTeamId: string | null
+  matchLineup: HomeMatchLineup | null
+}
+
+export interface HomeLineupPlayer {
+  id: string
+  name: string
+  position: string
+  squadNumber: number | null
+  isCaptain: boolean
+}
+
+export interface HomeMatchLineup {
+  matchId: string
+  season: string
+  competitionCode: CompetitionCode
+  round: number | null
+  stageLabel: string | null
+  matchDate: string
+  homeTeamName: string
+  awayTeamName: string
+  teamName: string
+  starters: HomeLineupPlayer[]
+  bench: HomeLineupPlayer[]
+}
+
+const HOME_LINEUP_POSITION_ORDER: Record<string, number> = {
+  GK: 0,
+  DF: 1,
+  MF: 2,
+  FW: 3,
+}
+
+function sortHomeLineupPlayers(players: HomeLineupPlayer[]) {
+  return [...players].sort((a, b) => {
+    const positionGap =
+      (HOME_LINEUP_POSITION_ORDER[a.position] ?? 99) -
+      (HOME_LINEUP_POSITION_ORDER[b.position] ?? 99)
+
+    if (positionGap !== 0) return positionGap
+
+    const squadA = a.squadNumber ?? 999
+    const squadB = b.squadNumber ?? 999
+    if (squadA !== squadB) return squadA - squadB
+
+    return a.name.localeCompare(b.name, "ko")
+  })
 }
 
 export type ScheduleView = "all" | "upcoming" | "past"
@@ -524,6 +571,108 @@ export async function getHomePlayerLeadersData(
   }))
 }
 
+async function getHomeMatchLineup(
+  supabase: NonNullable<ReturnType<typeof createPublicSupabaseClient>>,
+  match: Match | null,
+  seasonId: string,
+  primaryTeam: Team,
+): Promise<HomeMatchLineup | null> {
+  if (!match) return null
+
+  const { data: lineupData, error: lineupError } = await supabase
+    .from("match_lineups")
+    .select("*")
+    .eq("match_id", match.id)
+    .eq("team_id", primaryTeam.id)
+    .maybeSingle()
+
+  if (lineupError || !lineupData) {
+    return null
+  }
+
+  const lineup = lineupData as MatchLineup
+  const selectedPlayerIds = [
+    ...lineup.starters_player_ids,
+    ...lineup.bench_player_ids,
+  ]
+
+  if (!selectedPlayerIds.length) {
+    return null
+  }
+
+  const { data: rosterData, error: rosterError } = await supabase
+    .from("player_seasons")
+    .select("player_id, squad_number, is_captain, player:players(*)")
+    .eq("season_id", seasonId)
+    .eq("team_id", primaryTeam.id)
+    .eq("is_active", true)
+    .in("player_id", selectedPlayerIds)
+
+  if (rosterError) {
+    return null
+  }
+
+  const normalizedRosterRows = (
+    (rosterData ?? []) as Array<{
+      player_id: string
+      squad_number: number | null
+      is_captain: boolean | null
+      player?: Player | Player[] | null
+    }>
+  ).map((row) => {
+    const playerRecord = Array.isArray(row.player) ? (row.player[0] ?? null) : (row.player ?? null)
+
+    return {
+      player_id: row.player_id as string,
+      squad_number: (row.squad_number ?? null) as number | null,
+      is_captain: Boolean(row.is_captain),
+      player: playerRecord as Player | null,
+    }
+  })
+
+  const rosterMap = new Map(
+    normalizedRosterRows.map((row) => [
+      row.player_id,
+      {
+        id: row.player_id,
+        name: row.player?.name ?? "선수",
+        position: row.player?.position ?? "-",
+        squadNumber: row.squad_number ?? null,
+        isCaptain: row.is_captain,
+      } satisfies HomeLineupPlayer,
+    ]),
+  )
+
+  const starters = sortHomeLineupPlayers(
+    lineup.starters_player_ids
+      .map((id) => rosterMap.get(id))
+      .filter((item): item is HomeLineupPlayer => Boolean(item)),
+  )
+  const bench = sortHomeLineupPlayers(
+    lineup.bench_player_ids
+      .map((id) => rosterMap.get(id))
+      .filter((item): item is HomeLineupPlayer => Boolean(item)),
+  )
+
+  if (!starters.length) {
+    return null
+  }
+
+  return {
+    matchId: match.id,
+    season: match.season,
+    competitionCode: match.competition_code,
+    round: match.round,
+    stageLabel: match.stage_label,
+    matchDate: match.match_date,
+    homeTeamName: match.venue === "home" ? primaryTeam.name : match.opponent,
+    awayTeamName: match.venue === "home" ? match.opponent : primaryTeam.name,
+    teamName: primaryTeam.name,
+    starters,
+    bench,
+  }
+}
+
 export async function getHomePageOverview(): Promise<HomePageOverview> {
   const supabase = createPublicSupabaseClient()
   if (!supabase) {
@@ -535,6 +684,7 @@ export async function getHomePageOverview(): Promise<HomePageOverview> {
       initialLeagueRows: [],
       initialPlayerRows: [],
       primaryTeamId: null,
+      matchLineup: null,
     }
   }
 
@@ -560,6 +710,7 @@ export async function getHomePageOverview(): Promise<HomePageOverview> {
       initialLeagueRows: [],
       initialPlayerRows: [],
       primaryTeamId: primaryTeam?.id ?? null,
+      matchLineup: null,
     }
   }
 
@@ -596,9 +747,14 @@ export async function getHomePageOverview(): Promise<HomePageOverview> {
 
   const nextMatch = clubMatches.find((match) => match.status !== "finished") ?? null
   const latestMatch = [...clubMatches].reverse().find((match) => match.status === "finished") ?? null
-  const [initialLeagueRows, initialPlayerRows] = await Promise.all([
+  const lineupTargetMatch =
+    clubMatches.find((match) => match.status === "live") ??
+    clubMatches.find((match) => match.status !== "finished") ??
+    null
+  const [initialLeagueRows, initialPlayerRows, matchLineup] = await Promise.all([
     getHomeStandingsData(currentSeason.code, defaultLeague),
     getHomePlayerLeadersData(currentSeason.code, "goals"),
+    getHomeMatchLineup(supabase, lineupTargetMatch, currentSeason.id, primaryTeam),
   ])
 
   return {
@@ -609,6 +765,7 @@ export async function getHomePageOverview(): Promise<HomePageOverview> {
     initialLeagueRows,
     initialPlayerRows,
     primaryTeamId: primaryTeam.id,
+    matchLineup,
   }
 }
 

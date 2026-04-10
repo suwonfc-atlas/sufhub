@@ -45,7 +45,7 @@ export function AdminSidebar() {
               className="absolute inset-0 bg-slate-950/35 backdrop-blur-[2px]"
               aria-label="관리자 메뉴 닫기"
             />
-            <div className="absolute inset-x-3 top-[calc(env(safe-area-inset-top)+0.75rem)] rounded-[24px] border border-white/70 bg-white/98 p-4 shadow-[0_30px_80px_rgba(15,23,42,0.2)]">
+            <div className="absolute inset-x-3 top-[calc(env(safe-area-inset-top)+0.75rem)] bottom-[calc(env(safe-area-inset-bottom)+6.5rem)] flex min-h-0 flex-col rounded-[24px] border border-white/70 bg-white/98 p-4 shadow-[0_30px_80px_rgba(15,23,42,0.2)]">
               <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700">
@@ -63,7 +63,7 @@ export function AdminSidebar() {
                 </button>
               </div>
 
-              <nav className="mt-3 grid gap-2">
+              <nav className="mt-3 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
                 {adminSections.map((item) => {
                   const active =
                     pathname === item.href ||

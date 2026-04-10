@@ -7,6 +7,7 @@ import type {
   CompetitionCode,
   LeagueCode,
   LeagueMatch,
+  MatchLineup,
   MapPlace,
   Notice,
   NoticePageContent,
@@ -43,6 +44,12 @@ export interface AdminStandingsResult {
   selectedSeason: string
   selectedLeague: LeagueCode
   standings: Standing[]
+}
+
+export interface AdminDashboardLineupContext {
+  primaryTeamId: string | null
+  roster: PlayerSeason[]
+  lineups: MatchLineup[]
 }
 
 function normalizePage(page?: number) {
@@ -259,6 +266,56 @@ export async function getAdminSeasonTeamLeaguesPage(page = 1) {
 export async function getAdminMatches() {
   const { leagueMatches } = await getAdminLeagueData()
   return leagueMatches
+}
+
+export async function getAdminDashboardLineupContext(): Promise<AdminDashboardLineupContext> {
+  const supabase = await createServerSupabaseClient()
+  if (!supabase) {
+    return {
+      primaryTeamId: null,
+      roster: [],
+      lineups: [],
+    }
+  }
+
+  const { data: primaryTeamData } = await supabase
+    .from("teams")
+    .select("id")
+    .eq("is_primary", true)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle()
+
+  const primaryTeamId = (primaryTeamData as { id?: string } | null)?.id ?? null
+  if (!primaryTeamId) {
+    return {
+      primaryTeamId: null,
+      roster: [],
+      lineups: [],
+    }
+  }
+
+  const [{ data: rosterData }, { data: lineupsData }] = await Promise.all([
+    supabase
+      .from("player_seasons")
+      .select("*, player:players(*), season_record:seasons(*), team:teams(*)")
+      .eq("team_id", primaryTeamId)
+      .eq("is_active", true)
+      .order("season", { ascending: false })
+      .order("squad_number", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("match_lineups")
+      .select("*")
+      .eq("team_id", primaryTeamId)
+      .order("created_at", { ascending: false }),
+  ])
+
+  return {
+    primaryTeamId,
+    roster: (rosterData ?? []) as PlayerSeason[],
+    lineups: (lineupsData ?? []) as MatchLineup[],
+  }
 }
 
 export async function getAdminMatchesPage(
