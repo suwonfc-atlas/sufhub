@@ -29,15 +29,12 @@ const TYPE_LABELS: Record<InquiryType, string> = {
   other: "기타",
 };
 
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Seoul",
-  }).format(new Date(value));
+function formatDateLabel(value: string) {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export function InquiriesAdminBoard({
@@ -71,12 +68,12 @@ export function InquiriesAdminBoard({
   const rows = inquiries.map((item) => ({
     id: item.id,
     cells: [
-      <span key="created_at" className="font-semibold text-slate-500">
-        {formatDateTime(item.created_at)}
+      <span key="created_at" className="inline-block min-w-[7.5rem] whitespace-nowrap font-semibold text-slate-500">
+        {formatDateLabel(item.created_at)}
       </span>,
       <span
         key="type"
-        className="inline-flex rounded-full bg-[rgba(21,93,252,0.08)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--brand-blue)]"
+        className="inline-flex min-w-[4.5rem] justify-center rounded-full bg-[rgba(21,93,252,0.08)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--brand-blue)]"
       >
         {TYPE_LABELS[item.type]}
       </span>,
@@ -91,7 +88,7 @@ export function InquiriesAdminBoard({
       </span>,
       <span
         key="status"
-        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+        className={`inline-flex min-w-[5.5rem] justify-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
           item.status === "completed"
             ? "bg-emerald-50 text-emerald-700"
             : item.status === "processing"

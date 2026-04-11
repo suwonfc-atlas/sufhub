@@ -507,7 +507,7 @@ export function AdminDashboardSchedule({
           </div>
 
           {seasonRoster.length ? (
-            <div className="grid gap-2">
+            <div className="grid max-h-[38vh] gap-2 overflow-y-auto pr-1 lg:max-h-[26rem]">
               {seasonRoster.map((player) => {
                 const isStarter = lineupForm.starters_player_ids.includes(player.player_id);
                 const isBench = lineupForm.bench_player_ids.includes(player.player_id);
@@ -576,14 +576,16 @@ export function AdminDashboardSchedule({
         <AdminFormMessage message={lineupHint} status="error" />
         <AdminFormMessage message={lineupResult?.message ?? null} status={lineupResult?.status} />
 
-        <button
-          type="button"
-          disabled={isSavingLineup}
-          onClick={handleSaveLineup}
-          className="rounded-full bg-[color:var(--brand-blue)] px-5 py-2.5 text-sm font-semibold text-white"
-        >
-          {isSavingLineup ? "저장 중..." : "라인업 저장"}
-        </button>
+        <div className="sticky bottom-0 z-10 -mx-1 bg-white/95 px-1 pb-1 pt-2 backdrop-blur">
+          <button
+            type="button"
+            disabled={isSavingLineup}
+            onClick={handleSaveLineup}
+            className="w-full rounded-full bg-[color:var(--brand-blue)] px-5 py-2.5 text-sm font-semibold text-white"
+          >
+            {isSavingLineup ? "저장 중..." : "라인업 저장"}
+          </button>
+        </div>
       </div>
     );
   };
@@ -706,7 +708,7 @@ export function AdminDashboardSchedule({
             className="absolute inset-0 bg-slate-950/40"
             aria-label="편집기 닫기"
           />
-          <div className="absolute inset-x-0 bottom-0 rounded-t-[28px] bg-white px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 shadow-[0_-24px_64px_rgba(15,23,42,0.22)]">
+          <div className="absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] rounded-t-[28px] bg-white px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 shadow-[0_-24px_64px_rgba(15,23,42,0.22)]">
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="space-y-1">
@@ -724,7 +726,7 @@ export function AdminDashboardSchedule({
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="grid max-h-[72vh] gap-4 overflow-y-auto pb-2">
+            <div className="grid max-h-[calc(100dvh-15rem)] gap-4 overflow-y-auto pb-2">
               {renderMatchEditor()}
               <div className="h-px bg-slate-100" />
               {renderLineupEditor()}
