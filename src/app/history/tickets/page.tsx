@@ -1,5 +1,6 @@
 import { TicketGalleryBoard } from "@/components/history/ticket-gallery-board";
 import { getTickets } from "@/lib/data/public";
+import { parseKstDate } from "@/lib/utils";
 
 export const metadata = {
   title: "티켓 갤러리",
@@ -10,7 +11,7 @@ function getArchiveYear(createdAt: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
     timeZone: "Asia/Seoul",
-  }).format(new Date(createdAt));
+  }).format(parseKstDate(createdAt));
 }
 
 export default async function HistoryTicketsPage() {

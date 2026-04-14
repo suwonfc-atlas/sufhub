@@ -164,7 +164,11 @@ export function AdminImageUploadField({
               const publicUrl = await uploadFileToBucket(file, bucket);
               onChange(publicUrl);
             } catch (uploadError) {
-              setError(uploadError instanceof Error ? uploadError.message : "업로드에 실패했습니다.");
+              setError(
+                uploadError instanceof Error
+                  ? uploadError.message
+                  : "업로드에 실패했습니다.",
+              );
             } finally {
               setIsUploading(false);
               event.target.value = "";
@@ -223,7 +227,11 @@ export function AdminFileUploadField({
               const publicUrl = await uploadFileToBucket(file, bucket);
               onChange(publicUrl);
             } catch (uploadError) {
-              setError(uploadError instanceof Error ? uploadError.message : "업로드에 실패했습니다.");
+              setError(
+                uploadError instanceof Error
+                  ? uploadError.message
+                  : "업로드에 실패했습니다.",
+              );
             } finally {
               setIsUploading(false);
               event.target.value = "";
@@ -277,14 +285,18 @@ export function AdminImageListUploadField({
               }
               onChange([...values, ...uploaded]);
             } catch (uploadError) {
-              setError(uploadError instanceof Error ? uploadError.message : "업로드에 실패했습니다.");
+              setError(
+                uploadError instanceof Error
+                  ? uploadError.message
+                  : "업로드에 실패했습니다.",
+              );
             } finally {
               setIsUploading(false);
               event.target.value = "";
             }
           }}
         />
-        {isUploading ? "업로드 중..." : "이미지 여러 장 업로드"}
+        {isUploading ? "업로드 중..." : "이미지 여러 개 업로드"}
       </label>
       {values.length ? (
         <div className="grid gap-2">

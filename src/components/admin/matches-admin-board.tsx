@@ -19,7 +19,7 @@ import {
 } from "@/components/admin/admin-field-controls";
 import { AdminSectionTabs } from "@/components/admin/admin-section-tabs";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import { formatRoundLabel } from "@/lib/utils";
+import { formatDateTimeInputValue, formatRoundLabel, parseKstDate } from "@/lib/utils";
 import type { AdminPageResult } from "@/lib/data/admin";
 import type { CompetitionCode, LeagueCode, LeagueMatch, Season, SeasonTeamLeague, Team } from "@/types";
 
@@ -87,11 +87,6 @@ const KOREA_CUP_STAGES = [
   { label: "결승", order: 40 },
 ] as const;
 
-function formatDateTimeLocal(value: string) {
-  const date = new Date(value);
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
-}
-
 function formatMatchDateTime(value: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
@@ -100,7 +95,8 @@ function formatMatchDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).format(new Date(value));
+    timeZone: "Asia/Seoul",
+  }).format(parseKstDate(value));
 }
 
 function resolveDefaultSeasonId(seasons: Season[]) {
@@ -145,7 +141,7 @@ function createMatchForm(match: LeagueMatch): MatchMutationInput {
     round: match.round?.toString() ?? "",
     stage_label: match.stage_label ?? "",
     stage_order: match.stage_order?.toString() ?? "",
-    match_date: formatDateTimeLocal(match.match_date),
+    match_date: formatDateTimeInputValue(match.match_date),
     home_team_id: match.home_team_id,
     away_team_id: match.away_team_id,
     highlight_url: match.highlight_url ?? "",

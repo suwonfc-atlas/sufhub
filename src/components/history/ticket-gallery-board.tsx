@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 
 import type { TicketArchive } from "@/types";
+import { parseKstDate } from "@/lib/utils";
 
 interface TicketGalleryBoardProps {
   tickets: TicketArchive[];
@@ -25,7 +26,7 @@ function getArchiveYear(ticket: TicketArchive) {
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
     timeZone: "Asia/Seoul",
-  }).format(new Date(ticket.created_at));
+  }).format(parseKstDate(ticket.created_at));
 }
 
 export function TicketGalleryBoard({ tickets }: TicketGalleryBoardProps) {

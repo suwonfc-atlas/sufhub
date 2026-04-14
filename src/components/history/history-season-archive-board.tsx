@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import { MatchCard } from "@/components/matches/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import { cn, formatDateLabel, formatRoundLabel, formatTimeLabel } from "@/lib/utils";
+import { cn, formatDateLabel, formatRoundLabel, formatTimeLabel, parseKstDate } from "@/lib/utils";
 import type { CompetitionCode, LeagueCode, LeagueMatch, Match, Standing, Team } from "@/types";
 
 interface HistorySeasonArchiveBoardProps {
@@ -37,7 +37,7 @@ function getMonthLabel(matchDate: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     month: "long",
     timeZone: "Asia/Seoul",
-  }).format(new Date(matchDate));
+  }).format(parseKstDate(matchDate));
 }
 
 function getCompetitionLabel(competition: "all" | CompetitionCode) {

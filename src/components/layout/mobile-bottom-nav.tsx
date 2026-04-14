@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { BookOpen, Home, MapPin, Menu, Music2, Trophy, X } from "lucide-react";
+import { BookOpen, Home, Menu, MessageCircle, Music2, Trophy, X } from "lucide-react";
 
 import { moreNavigation } from "@/lib/constants/site";
 import { cn, isPathActive } from "@/lib/utils";
@@ -11,7 +11,7 @@ import { cn, isPathActive } from "@/lib/utils";
 const tabs = [
   { href: "/", label: "홈", icon: Home, match: [] },
   { href: "/matches/schedule", label: "경기", icon: Trophy, match: ["/matches"] },
-  { href: "/map", label: "캐슬클럽", icon: MapPin, match: [] },
+  { href: "/community", label: "커뮤니티", icon: MessageCircle, match: ["/community"] },
   { href: "/chants", label: "응원가", icon: Music2, match: [] },
 ];
 

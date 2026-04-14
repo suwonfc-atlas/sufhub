@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { HomeMatchLineup } from "@/lib/data/public";
-import { formatRoundLabel } from "@/lib/utils";
+import { formatRoundLabel, parseKstDate } from "@/lib/utils";
 import { SurfaceCard } from "@/components/ui/surface-card";
 
 function getStorageKey(matchId: string) {
@@ -20,7 +20,7 @@ function formatDateLabel(value: string) {
     minute: "2-digit",
     hour12: false,
     timeZone: "Asia/Seoul",
-  }).format(new Date(value));
+  }).format(parseKstDate(value));
 }
 
 export function HomeLineupModal({ lineup }: { lineup: HomeMatchLineup | null }) {

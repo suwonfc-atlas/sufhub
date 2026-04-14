@@ -175,6 +175,7 @@ export type MatchVenue = "home" | "away"
 export type MatchStatus = "scheduled" | "live" | "finished"
 export type LeagueCode = "K1" | "K2"
 export type CompetitionCode = LeagueCode | "KOREA_CUP"
+export type PredictionChoice = "win" | "draw" | "lose"
 
 export interface Season {
   id: string
@@ -263,6 +264,22 @@ export interface Match {
   status: MatchStatus
   competition: string
   created_at: string
+  updated_at: string
+}
+
+export interface MatchPrediction {
+  id: string
+  user_id: string
+  match_id: string
+  choice: PredictionChoice
+  created_at: string
+  updated_at: string
+}
+
+export interface ExperienceRule {
+  action: string
+  points: number
+  is_active: boolean
   updated_at: string
 }
 
@@ -359,12 +376,59 @@ export type InquiryStatus = "inquiry" | "processing" | "completed"
 
 export interface Inquiry {
   id: string
+  user_id?: string | null
   title: string
   type: InquiryType
-  reply_contact: string
+  reply_contact?: string | null
   sender_name: string
   content: string
   status: InquiryStatus
+  answer_content?: string | null
+  answered_at?: string | null
+  answered_by?: string | null
   created_at: string
   updated_at: string
+}
+
+export interface UserAccount {
+  id: string
+  username: string
+  email: string
+  nickname: string
+  birth_date: string
+  level: number
+  experience: number
+  is_active: boolean
+  status?: "active" | "suspended" | "expelled"
+  suspended_until?: string | null
+  suspension_count?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface UserConsent {
+  id: string
+  user_id: string
+  terms_version: string
+  privacy_version: string
+  created_at: string
+}
+
+export interface UserSession {
+  id: string
+  user_id: string
+  session_token: string
+  expires_at: string
+  created_at: string
+}
+
+export interface UserExperienceLog {
+  id: string
+  user_id: string
+  delta: number
+  total_experience: number
+  reason: string
+  action?: string | null
+  reference_id?: string | null
+  created_at: string
 }

@@ -18,7 +18,7 @@ import type { GuideCategory } from "@/types";
 const guidePageMap = {
   seats: {
     title: "좌석 가이드",
-    description: "직관 전에 미리 참고할 수 있는 고정 좌석 안내입니다.",
+    description: "직관 전에 미리 참고하면 좋은 좌석 정보를 안내합니다.",
   },
   "away-bus": {
     title: "원정버스",
@@ -30,11 +30,11 @@ const guidePageMap = {
   },
   groups: {
     title: "소모임",
-    description: "팬 소모임과 참여 링크를 확인할 수 있습니다.",
+    description: "응원을 함께하는 소모임과 참여 링크를 확인합니다.",
   },
   community: {
-    title: "커뮤니티",
-    description: "주요 커뮤니티 링크를 모아둔 페이지입니다.",
+    title: "채널",
+    description: "공식 채널과 커뮤니티 링크를 안내합니다.",
   },
 } as const satisfies Record<string, { title: string; description: string }>;
 
@@ -85,7 +85,8 @@ export default async function GuideDetailPage({
           </p>
           <h2 className="mt-2 text-2xl font-black">수원종합운동장 좌석 안내</h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-sky-50/88">
-            좌석 가이드는 고정 정보로 운영합니다. 예매 및 가격 정보는 해당 경기의 공식 공지를 함께 확인해 주세요.
+            좌석 가이드는 고정 정보로 제공됩니다. 가격과 상세 정보는 해당 경기장 공식 공지를
+            확인해 주세요.
           </p>
         </SurfaceCard>
         <div className="grid gap-4 lg:grid-cols-3">
@@ -179,7 +180,9 @@ export default async function GuideDetailPage({
     );
   }
 
-  const contents = await getGuideContents(slug as Extract<GuideCategory, "groups" | "community">);
+  const contents = await getGuideContents(
+    slug as Extract<GuideCategory, "groups" | "community">,
+  );
 
   if (!contents.length) {
     return (

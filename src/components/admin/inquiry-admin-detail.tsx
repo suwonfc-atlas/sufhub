@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
+  saveInquiryAnswer,
   updateInquiryStatus,
   type AdminMutationResult,
 } from "@/app/admin/actions";
 import { AdminFormMessage } from "@/components/admin/admin-field-controls";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { parseKstDate } from "@/lib/utils";
 import type { Inquiry, InquiryStatus, InquiryType } from "@/types";
 
 const STATUS_LABELS: Record<InquiryStatus, string> = {
@@ -35,7 +37,7 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Asia/Seoul",
-  }).format(new Date(value));
+  }).format(parseKstDate(value));
 }
 
 export function InquiryAdminDetail({
@@ -48,10 +50,24 @@ export function InquiryAdminDetail({
   const router = useRouter();
   const [result, setResult] = useState<AdminMutationResult | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [answer, setAnswer] = useState(inquiry.answer_content ?? "");
 
   const handleUpdateStatus = (nextStatus: InquiryStatus) => {
     startTransition(async () => {
       const next = await updateInquiryStatus({ id: inquiry.id, status: nextStatus });
+      setResult(next);
+      if (next.status === "success") {
+        router.refresh();
+      }
+    });
+  };
+
+  const handleSaveAnswer = () => {
+    startTransition(async () => {
+      const next = await saveInquiryAnswer({
+        id: inquiry.id,
+        answer_content: answer,
+      });
       setResult(next);
       if (next.status === "success") {
         router.refresh();
@@ -100,15 +116,38 @@ export function InquiryAdminDetail({
           <p className="mt-2 text-sm font-semibold text-slate-800">{inquiry.sender_name}</p>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">회신 연락처</p>
-          <p className="mt-2 text-sm font-semibold text-slate-800">{inquiry.reply_contact}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">처리 상태</p>
+          <p className="mt-2 text-sm font-semibold text-slate-800">{STATUS_LABELS[inquiry.status]}</p>
         </div>
       </div>
 
       <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">내용</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">문의 내용</p>
         <div className="mt-3 whitespace-pre-line rounded-xl bg-white px-4 py-4 text-sm leading-7 text-slate-700">
           {inquiry.content}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">답변</p>
+        <p className="mt-1 text-xs text-emerald-600">
+          {inquiry.answered_at ? formatDateTime(inquiry.answered_at) : "아직 답변이 없습니다."}
+        </p>
+        <textarea
+          value={answer}
+          onChange={(event) => setAnswer(event.target.value)}
+          className="mt-3 min-h-28 w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm leading-7 text-slate-700 outline-none focus:border-emerald-300"
+          placeholder="답변 내용을 입력해 주세요."
+        />
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={handleSaveAnswer}
+            disabled={isPending}
+            className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            답변 저장
+          </button>
         </div>
       </div>
 

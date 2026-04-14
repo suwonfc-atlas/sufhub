@@ -55,7 +55,7 @@ function createGuideContentForm(content: GuideContent): GuideContentMutationInpu
 
 const contentLabels: Record<CommunityCategory, string> = {
   groups: "소모임",
-  community: "커뮤니티",
+  community: "채널",
 };
 
 export function GuideAdminBoard({
@@ -83,7 +83,11 @@ export function GuideAdminBoard({
     () =>
       guideContents.map((content) => ({
         id: content.id,
-        cells: [content.title, content.sort_order, content.is_active ? "노출" : "숨김"],
+        cells: [
+          content.title,
+          content.sort_order,
+          content.is_active ? "노출" : "미노출",
+        ],
       })),
     [guideContents],
   );
@@ -114,7 +118,10 @@ export function GuideAdminBoard({
   };
 
   const handleDeleteSelected = () => {
-    if (!selectedIds.length || !window.confirm(`선택한 콘텐츠 ${selectedIds.length}건을 삭제할까요?`)) {
+    if (
+      !selectedIds.length ||
+      !window.confirm(`선택한 콘텐츠 ${selectedIds.length}개를 삭제할까요?`)
+    ) {
       return;
     }
 
@@ -140,7 +147,7 @@ export function GuideAdminBoard({
       <AdminSectionTabs
         tabs={[
           { key: "groups", label: "소모임" },
-          { key: "community", label: "커뮤니티" },
+          { key: "community", label: "채널" },
         ]}
         activeKey={activeTab}
         onChange={(key) => {
@@ -158,7 +165,9 @@ export function GuideAdminBoard({
         <SurfaceCard className="grid gap-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-xl font-black text-slate-950">
-              {contentForm.id ? `${contentLabels[activeTab]} 수정` : `${contentLabels[activeTab]} 추가`}
+              {contentForm.id
+                ? `${contentLabels[activeTab]} 수정`
+                : `${contentLabels[activeTab]} 추가`}
             </h2>
             <button
               type="button"
@@ -242,7 +251,9 @@ export function GuideAdminBoard({
         <AdminDataTable
           title={`${contentLabels[activeTab]} 목록`}
           description={
-            activeTab === "groups" ? "소모임 정보를 관리합니다." : "커뮤니티 링크를 관리합니다."
+            activeTab === "groups"
+              ? "소모임 정보를 관리합니다."
+              : "채널 링크를 관리합니다."
           }
           columns={["제목", "정렬", "노출"]}
           rows={rows}
@@ -255,7 +266,9 @@ export function GuideAdminBoard({
           }
           onToggleAll={() =>
             setSelectedIds(
-              selectedIds.length === guideContents.length ? [] : guideContents.map((content) => content.id),
+              selectedIds.length === guideContents.length
+                ? []
+                : guideContents.map((content) => content.id),
             )
           }
           onSelectRow={(id) => {

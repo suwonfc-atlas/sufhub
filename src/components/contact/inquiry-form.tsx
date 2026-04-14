@@ -7,6 +7,7 @@ import {
   type ContactInquiryInput,
   type ContactInquiryResult,
 } from "@/app/contact/actions";
+import type { Inquiry } from "@/types";
 
 const INQUIRY_TYPE_OPTIONS: Array<{
   label: string;
@@ -32,13 +33,17 @@ const TYPE_HELPERS: Record<ContactInquiryInput["type"], string> = {
 const EMPTY_FORM: ContactInquiryInput = {
   title: "",
   type: "inquiry",
-  reply_contact: "",
-  sender_name: "",
   content: "",
 };
 
-export function InquiryForm() {
-  const [form, setForm] = useState<ContactInquiryInput>(EMPTY_FORM);
+export function InquiryForm({
+  onComplete,
+  onCancel,
+}: {
+  onComplete?: (inquiry?: Inquiry) => void;
+  onCancel?: () => void;
+}) {
+  const [form, setForm] = useState<ContactInquiryInput>({ ...EMPTY_FORM });
   const [result, setResult] = useState<ContactInquiryResult | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -50,7 +55,8 @@ export function InquiryForm() {
       setResult(next);
 
       if (next.status === "success") {
-        setForm(EMPTY_FORM);
+        setForm({ ...EMPTY_FORM });
+        onComplete?.(next.inquiry);
       }
     });
   };
@@ -61,7 +67,7 @@ export function InquiryForm() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--brand-blue)]">
           Contact
         </p>
-        <h2 className="text-xl font-black text-slate-950">문의 남기기</h2>
+        <h2 className="text-xl font-black text-slate-950">문의 보내기</h2>
         <p className="text-sm leading-6 text-slate-600">
           문의, 제보, 제안, 자랑, 상담 등 필요한 내용을 간단히 남겨 주세요.
         </p>
@@ -74,7 +80,7 @@ export function InquiryForm() {
             value={form.title}
             onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
             className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 outline-none focus:border-sky-400"
-            placeholder="제목을 입력해 주세요."
+            placeholder="제목을 입력해 주세요"
           />
         </label>
 
@@ -99,35 +105,9 @@ export function InquiryForm() {
         </label>
 
         <div className="rounded-xl border border-sky-100 bg-sky-50 px-3.5 py-2.5">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-500">
-            Guide
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-500">Guide</p>
           <p className="mt-1 text-sm font-semibold text-slate-700">{helperDescription}</p>
         </div>
-
-        <label className="grid gap-1.5">
-          <span className="text-sm font-semibold text-slate-700">회신 연락처</span>
-          <input
-            value={form.reply_contact}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, reply_contact: event.target.value }))
-            }
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 outline-none focus:border-sky-400"
-            placeholder="전화번호 또는 이메일"
-          />
-        </label>
-
-        <label className="grid gap-1.5">
-          <span className="text-sm font-semibold text-slate-700">문의자</span>
-          <input
-            value={form.sender_name}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, sender_name: event.target.value }))
-            }
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 outline-none focus:border-sky-400"
-            placeholder="이름 또는 닉네임"
-          />
-        </label>
 
         <label className="grid gap-1.5 md:col-span-2">
           <span className="text-sm font-semibold text-slate-700">내용</span>
@@ -135,7 +115,7 @@ export function InquiryForm() {
             value={form.content}
             onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))}
             className="min-h-36 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm leading-6 text-slate-700 outline-none focus:border-sky-400"
-            placeholder="문의 내용을 자세히 남겨 주세요."
+            placeholder="문의 내용을 자세히 적어 주세요"
           />
         </label>
       </div>
@@ -152,7 +132,16 @@ export function InquiryForm() {
         </div>
       ) : null}
 
-      <div className="mt-5 flex justify-end">
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        {onCancel ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700"
+          >
+            취소
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={handleSubmit}

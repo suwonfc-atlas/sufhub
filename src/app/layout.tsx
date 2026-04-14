@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Black_Han_Sans, Noto_Sans_KR } from "next/font/google";
 import Script from "next/script";
+import { cookies } from "next/headers";
 
 import { AppFrame } from "@/components/layout/app-frame";
 import { siteConfig } from "@/lib/constants/site";
@@ -50,6 +51,14 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${siteConfig.name}`,
     },
     description: siteConfig.description,
+    icons: {
+      icon: [
+        { url: "/favicon/favicon.ico" },
+        { url: "/favicon/android-chrome-192x192.png", sizes: "192x192", type: "image/png" },
+        { url: "/favicon/android-chrome-512x512.png", sizes: "512x512", type: "image/png" },
+      ],
+      apple: [{ url: "/favicon/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    },
     openGraph: {
       title: siteConfig.name,
       description: siteConfig.description,
@@ -64,11 +73,14 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const hasSession = Boolean(cookieStore.get("sufhub_session")?.value);
+
   return (
     <html
       lang="ko"
@@ -89,7 +101,7 @@ export default function RootLayout({
         </Script>
       </head>
       <body>
-        <AppFrame>{children}</AppFrame>
+        <AppFrame isAuthenticated={hasSession}>{children}</AppFrame>
       </body>
     </html>
   );

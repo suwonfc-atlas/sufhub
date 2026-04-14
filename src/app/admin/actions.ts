@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { isAdminUser } from "@/lib/auth/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { formatKstDateTimeString } from "@/lib/utils";
 import type {
   ChantCategory,
   CompetitionCode,
@@ -262,9 +263,45 @@ export interface SupporterMutationInput {
   donated_at: string;
 }
 
+export interface UserMutationInput {
+  id: string;
+  username: string;
+  nickname: string;
+  email: string;
+  birth_date: string;
+  level: string;
+  experience: string;
+  is_active: boolean;
+}
+
+export interface UserSuspensionInput {
+  id: string;
+  days: string;
+  reason: string;
+}
+
+export interface UserExpelInput {
+  id: string;
+  reason: string;
+}
+
+export interface UserSuspensionRecord {
+  id: string;
+  start_at: string;
+  end_at: string;
+  days: number;
+  reason: string | null;
+  created_at: string;
+}
+
 export interface InquiryStatusMutationInput {
   id: string;
   status: "inquiry" | "processing" | "completed";
+}
+
+export interface InquiryAnswerMutationInput {
+  id: string;
+  answer_content: string;
 }
 
 function success(message: string, entityId?: string): AdminMutationResult {
@@ -319,18 +356,46 @@ function parseImageList(value: string) {
   return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
 }
 
+const TIMEZONE_SUFFIX_PATTERN = /[zZ]|[+-]\d{2}:\d{2}$/;
+
+function normalizeLocalDateTime(value: string) {
+  const normalized = value.includes("T") ? value : value.replace(" ", "T");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return `${normalized}T00:00:00`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(normalized)) {
+    return `${normalized}:00`;
+  }
+  return normalized;
+}
+
 function toSeoulIsoString(value: string) {
   const trimmed = value.trim();
   if (!trimmed) {
     throw new Error("일시를 입력해 주세요.");
   }
-  return new Date(`${trimmed}:00+09:00`).toISOString();
+
+  const normalized = normalizeLocalDateTime(trimmed);
+
+  if (TIMEZONE_SUFFIX_PATTERN.test(normalized)) {
+    return formatKstDateTimeString(new Date(normalized));
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(normalized)) {
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new Error("일시 형식이 올바르지 않습니다.");
+    }
+    return formatKstDateTimeString(parsed);
+  }
+
+  return normalized;
 }
 
 function toNullableIsoString(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
-  return new Date(`${trimmed}:00+09:00`).toISOString();
+  return toSeoulIsoString(trimmed);
 }
 
 function toDateOnlyString(value: string) {
@@ -730,17 +795,13 @@ function parseExternalMatchDateTime(value: string | null | undefined) {
     throw new Error("경기 일시 값이 필요합니다.")
   }
 
-  const normalized = trimmed.replace(" ", "T")
-  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(normalized)) {
-    return new Date(normalized).toISOString()
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(normalized)) {
-    return new Date(`${normalized}:00+09:00`).toISOString()
+  const normalized = normalizeLocalDateTime(trimmed)
+  if (TIMEZONE_SUFFIX_PATTERN.test(normalized)) {
+    return formatKstDateTimeString(new Date(normalized))
   }
 
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(normalized)) {
-    return new Date(`${normalized}+09:00`).toISOString()
+    return normalized
   }
 
   const parsed = new Date(normalized)
@@ -748,7 +809,7 @@ function parseExternalMatchDateTime(value: string | null | undefined) {
     throw new Error("경기 일시 형식이 올바르지 않습니다.")
   }
 
-  return parsed.toISOString()
+  return formatKstDateTimeString(parsed)
 }
 
 export async function syncSeasonTeamPlayerStats(
@@ -1978,7 +2039,7 @@ export async function saveNotice(input: NoticeMutationInput): Promise<AdminMutat
     const payload = {
       title: normalizeString(input.title),
       content: normalizeNullableString(input.content),
-      published_at: toNullableIsoString(input.published_at) ?? new Date().toISOString(),
+      published_at: toNullableIsoString(input.published_at) ?? formatKstDateTimeString(new Date()),
       is_active: input.is_active,
       is_pinned: input.is_pinned,
     };
@@ -2095,6 +2156,183 @@ export async function deleteSupporter(id: string): Promise<AdminMutationResult> 
   }
 }
 
+export async function saveUserAccount(input: UserMutationInput): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const payload = {
+      nickname: normalizeString(input.nickname),
+      email: normalizeString(input.email).toLowerCase(),
+      level: parseInteger(input.level, "레벨"),
+      experience: parseInteger(input.experience, "경험치"),
+      is_active: input.is_active,
+    };
+
+    const { error } = await admin.supabase.from("users").update(payload).eq("id", input.id);
+    if (error) return failure(error.message);
+
+    revalidatePaths(["/admin/users", "/mypage", "/api/auth/me"]);
+    return success("회원 정보를 수정했습니다.");
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : "회원 정보 수정 중 오류가 발생했습니다.");
+  }
+}
+
+export async function suspendUserAccount(
+  input: UserSuspensionInput,
+): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const days = parseInteger(input.days, "정지 일수");
+    const now = new Date();
+    const suspendedUntil = formatKstDateTimeString(
+      new Date(now.getTime() + days * 24 * 60 * 60 * 1000),
+    );
+
+    const { data: user } = await admin.supabase
+      .from("users")
+      .select("username, email, suspension_count")
+      .eq("id", input.id)
+      .maybeSingle();
+
+    if (!user) {
+      return failure("대상 회원을 찾지 못했습니다.");
+    }
+
+    const nextCount = (user.suspension_count ?? 0) + 1;
+
+    const { error: updateError } = await admin.supabase
+      .from("users")
+      .update({
+        status: "suspended",
+        suspended_until: suspendedUntil,
+        suspension_count: nextCount,
+      })
+      .eq("id", input.id);
+
+    if (updateError) return failure(updateError.message);
+
+    const { error: suspensionError } = await admin.supabase.from("user_suspensions").insert({
+      user_id: input.id,
+      start_at: formatKstDateTimeString(now),
+      end_at: suspendedUntil,
+      days,
+      reason: normalizeNullableString(input.reason),
+      created_by: admin.userId,
+    });
+
+    if (suspensionError) return failure(suspensionError.message);
+
+    await admin.supabase.from("user_sessions").delete().eq("user_id", input.id);
+
+    revalidatePaths(["/admin/users", "/mypage", "/api/auth/me"]);
+    return success("회원 정지를 적용했습니다.");
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : "회원 정지 처리 중 오류가 발생했습니다.");
+  }
+}
+
+export async function expelUserAccount(
+  input: UserExpelInput,
+): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const { data: user } = await admin.supabase
+      .from("users")
+      .select("username, email")
+      .eq("id", input.id)
+      .maybeSingle();
+
+    if (!user) {
+      return failure("대상 회원을 찾지 못했습니다.");
+    }
+
+    const { error: updateError } = await admin.supabase
+      .from("users")
+      .update({
+        status: "expelled",
+        suspended_until: null,
+        is_active: false,
+      })
+      .eq("id", input.id);
+
+    if (updateError) return failure(updateError.message);
+
+    const { error: banError } = await admin.supabase.from("user_banlist").insert({
+      login_id: user.username,
+      email: user.email.toLowerCase(),
+      reason: normalizeNullableString(input.reason),
+      created_by: admin.userId,
+    });
+
+    if (banError) return failure(banError.message);
+
+    await admin.supabase.from("user_sessions").delete().eq("user_id", input.id);
+
+    revalidatePaths(["/admin/users", "/mypage", "/api/auth/me"]);
+    return success("회원 퇴출을 처리했습니다.");
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : "회원 퇴출 처리 중 오류가 발생했습니다.");
+  }
+}
+
+export async function clearUserSuspension(userId: string): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const { data: user } = await admin.supabase
+      .from("users")
+      .select("status")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!user) {
+      return failure("대상 회원을 찾지 못했습니다.");
+    }
+
+    if (user.status === "expelled") {
+      return failure("퇴출된 계정은 정지 해제가 불가능합니다.");
+    }
+
+    const { error } = await admin.supabase
+      .from("users")
+      .update({ status: "active", suspended_until: null })
+      .eq("id", userId);
+
+    if (error) return failure(error.message);
+
+    revalidatePaths(["/admin/users", "/mypage", "/api/auth/me"]);
+    return success("정지를 해제했습니다.");
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : "정지 해제 중 오류가 발생했습니다.");
+  }
+}
+
+export async function getUserSuspensions(userId: string) {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return [] as UserSuspensionRecord[];
+
+    const { data, error } = await admin.supabase
+      .from("user_suspensions")
+      .select("id, start_at, end_at, days, reason, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(3);
+
+    if (error) return [] as UserSuspensionRecord[];
+    return (data ?? []) as UserSuspensionRecord[];
+  } catch {
+    return [] as UserSuspensionRecord[];
+  }
+}
+
 export async function updateInquiryStatus(
   input: InquiryStatusMutationInput,
 ): Promise<AdminMutationResult> {
@@ -2115,5 +2353,41 @@ export async function updateInquiryStatus(
     return failure(
       error instanceof Error ? error.message : "문의 상태 수정 중 오류가 발생했습니다.",
     );
+  }
+}
+
+export async function saveInquiryAnswer(
+  input: InquiryAnswerMutationInput,
+): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const answerContent = normalizeNullableString(input.answer_content);
+
+    const payload: {
+      answer_content: string | null;
+      answered_at: string | null;
+      status?: "completed";
+    } = {
+      answer_content: answerContent,
+      answered_at: answerContent ? formatKstDateTimeString(new Date()) : null,
+    };
+
+    if (answerContent) {
+      payload.status = "completed";
+    }
+
+    const { error } = await admin.supabase
+      .from("inquiries")
+      .update(payload)
+      .eq("id", input.id);
+
+    if (error) return failure(error.message);
+
+    revalidatePaths(["/admin", "/admin/inquiries", "/contact", "/mypage"]);
+    return success("답변을 저장했습니다.");
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : "답변 저장 중 오류가 발생했습니다.");
   }
 }

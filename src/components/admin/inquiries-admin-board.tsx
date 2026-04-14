@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AdminDataTable } from "@/components/admin/admin-data-table";
 import { AdminSectionTabs } from "@/components/admin/admin-section-tabs";
 import type { AdminPageResult } from "@/lib/data/admin";
+import { parseKstDate } from "@/lib/utils";
 import type { Inquiry, InquiryStatus, InquiryType } from "@/types";
 
 const STATUS_TABS: Array<{ key: "all" | InquiryStatus; label: string }> = [
@@ -30,11 +31,12 @@ const TYPE_LABELS: Record<InquiryType, string> = {
 };
 
 function formatDateLabel(value: string) {
-  const date = new Date(value);
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return new Intl.DateTimeFormat("sv-SE", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Seoul",
+  }).format(parseKstDate(value));
 }
 
 export function InquiriesAdminBoard({
@@ -68,7 +70,10 @@ export function InquiriesAdminBoard({
   const rows = inquiries.map((item) => ({
     id: item.id,
     cells: [
-      <span key="created_at" className="inline-block min-w-[7.5rem] whitespace-nowrap font-semibold text-slate-500">
+      <span
+        key="created_at"
+        className="inline-block min-w-[7.5rem] whitespace-nowrap font-semibold text-slate-500"
+      >
         {formatDateLabel(item.created_at)}
       </span>,
       <span
@@ -82,9 +87,6 @@ export function InquiriesAdminBoard({
       </span>,
       <span key="sender_name" className="truncate text-slate-600">
         {item.sender_name}
-      </span>,
-      <span key="reply_contact" className="truncate text-slate-600">
-        {item.reply_contact}
       </span>,
       <span
         key="status"
@@ -117,11 +119,11 @@ export function InquiriesAdminBoard({
       <AdminDataTable
         title="문의 목록"
         description={
-          status === "all" || status === "inquiry"
+          status === "all" || status === "inquiry" || status === "processing"
             ? "접수된 순서대로 문의를 확인합니다."
             : "처리 상태별 문의를 최신순으로 확인합니다."
         }
-        columns={["접수일시", "타입", "제목", "문의자", "회신 연락처", "상태"]}
+        columns={["접수일시", "타입", "제목", "문의자", "상태"]}
         rows={rows}
         selectedIds={[]}
         onToggleRow={() => undefined}

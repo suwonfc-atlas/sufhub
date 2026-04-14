@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SupportersRosterButton } from "@/components/notices/supporters-roster-button";
 import { PageIntro } from "@/components/ui/page-intro";
 import { getNoticePageContent, getNotices, getSupporters } from "@/lib/data/public";
+import { parseKstDate } from "@/lib/utils";
 
 function formatDate(value: string | null) {
   if (!value) return "";
@@ -11,7 +12,7 @@ function formatDate(value: string | null) {
     month: "long",
     day: "numeric",
     timeZone: "Asia/Seoul",
-  }).format(new Date(value));
+  }).format(parseKstDate(value));
 }
 
 export const metadata = {

@@ -29,6 +29,7 @@ import type {
 } from "@/types"
 
 import { buildClubMatches, buildStandings, getPrimaryTeam } from "./league"
+import { parseKstDate } from "@/lib/utils"
 
 export type HomePlayerLeaderMetric =
   | "goals"
@@ -331,7 +332,7 @@ function getMonthLabel(matchDate: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     month: "long",
     timeZone: "Asia/Seoul",
-  }).format(new Date(matchDate))
+  }).format(parseKstDate(matchDate))
 }
 
 function sortCompetitionFilters(
@@ -450,7 +451,7 @@ export async function getSchedulePageData(params?: {
   } else if (selectedView === "past") {
     filteredMatches = filteredMatches
       .filter((match) => match.status === "finished")
-      .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
+      .sort((a, b) => parseKstDate(b.match_date).getTime() - parseKstDate(a.match_date).getTime())
   }
 
   return {
@@ -1329,7 +1330,8 @@ export async function getHomePageData() {
   const [matches, standings, news] = await Promise.all([getMatches(), getStandings(), getNews(3)])
 
   const nextMatch =
-    matches.find((match) => match.status !== "finished" && new Date(match.match_date).getTime() >= Date.now()) ?? null
+    matches.find((match) => match.status !== "finished" && parseKstDate(match.match_date).getTime() >= Date.now()) ??
+    null
   const latestMatch = [...matches].reverse().find((match) => match.status === "finished") ?? null
   const currentSeason = standings[0]?.season ?? ""
   const seasonStandings = standings.filter((standing) => standing.season === currentSeason)

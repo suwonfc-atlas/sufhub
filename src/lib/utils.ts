@@ -1,5 +1,54 @@
 import type { Match } from "@/types";
 
+const KST_TIME_ZONE = "Asia/Seoul";
+const TIMEZONE_SUFFIX_PATTERN = /[zZ]|[+-]\d{2}:\d{2}$/;
+
+function normalizeDateTimeString(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const normalized = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return `${normalized}T00:00:00`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(normalized)) {
+    return `${normalized}:00`;
+  }
+  return normalized;
+}
+
+export function parseKstDate(value: string) {
+  const normalized = normalizeDateTimeString(value);
+  if (!normalized) return new Date(NaN);
+  if (TIMEZONE_SUFFIX_PATTERN.test(normalized)) {
+    return new Date(normalized);
+  }
+  return new Date(`${normalized}+09:00`);
+}
+
+export function formatKstDateTimeString(date: Date) {
+  const formatted = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: KST_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+  return formatted.replace(" ", "T");
+}
+
+export function formatDateTimeInputValue(value: string | null | undefined) {
+  if (!value) return "";
+  const normalized = normalizeDateTimeString(value);
+  return normalized ? normalized.slice(0, 16) : "";
+}
+
+export function getKstNowDate() {
+  return parseKstDate(formatKstDateTimeString(new Date()));
+}
+
 export function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
@@ -17,15 +66,15 @@ export function formatDateLabel(dateString: string, withWeekday = true) {
     month: "long",
     day: "numeric",
     weekday: withWeekday ? "short" : undefined,
-    timeZone: "Asia/Seoul",
-  }).format(new Date(dateString));
+    timeZone: KST_TIME_ZONE,
+  }).format(parseKstDate(dateString));
 }
 
 export function formatMonthLabel(dateString: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     month: "long",
-    timeZone: "Asia/Seoul",
-  }).format(new Date(dateString));
+    timeZone: KST_TIME_ZONE,
+  }).format(parseKstDate(dateString));
 }
 
 export function formatTimeLabel(dateString: string) {
@@ -33,8 +82,8 @@ export function formatTimeLabel(dateString: string) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: "Asia/Seoul",
-  }).format(new Date(dateString));
+    timeZone: KST_TIME_ZONE,
+  }).format(parseKstDate(dateString));
 }
 
 export function formatRoundLabel(round: number | null | undefined) {
@@ -58,8 +107,8 @@ export function formatPublishedAt(dateString: string | null) {
     year: "numeric",
     month: "short",
     day: "numeric",
-    timeZone: "Asia/Seoul",
-  }).format(new Date(dateString));
+    timeZone: KST_TIME_ZONE,
+  }).format(parseKstDate(dateString));
 }
 
 export function formatDuration(seconds: number | null | undefined) {
@@ -78,8 +127,8 @@ export function formatDuration(seconds: number | null | undefined) {
 }
 
 export function getDDayLabel(dateString: string) {
-  const target = new Date(dateString);
-  const today = new Date();
+  const target = parseKstDate(dateString);
+  const today = getKstNowDate();
   const diff = Math.ceil(
     (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
   );

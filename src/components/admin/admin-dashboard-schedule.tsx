@@ -18,7 +18,7 @@ import {
 } from "@/components/admin/admin-field-controls";
 import { AdminSectionTabs } from "@/components/admin/admin-section-tabs";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import { cn, formatRoundLabel } from "@/lib/utils";
+import { cn, formatDateTimeInputValue, formatRoundLabel, parseKstDate } from "@/lib/utils";
 import type { LeagueMatch, MatchLineup, MatchStatus, PlayerSeason, Season, Team } from "@/types";
 
 function formatDateLabel(value: string) {
@@ -30,17 +30,15 @@ function formatDateLabel(value: string) {
     minute: "2-digit",
     hour12: false,
     timeZone: "Asia/Seoul",
-  }).format(new Date(value));
-}
-
-function formatDateTimeLocal(value: string) {
-  const date = new Date(value);
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
+  }).format(parseKstDate(value));
 }
 
 function monthKeyOf(value: string) {
-  const date = new Date(value);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+  }).format(parseKstDate(value));
 }
 
 function monthLabelOf(key: string) {
@@ -50,7 +48,7 @@ function monthLabelOf(key: string) {
 
 function sortMatchesByDate(matches: LeagueMatch[]) {
   return [...matches].sort(
-    (left, right) => new Date(left.match_date).getTime() - new Date(right.match_date).getTime(),
+    (left, right) => parseKstDate(left.match_date).getTime() - parseKstDate(right.match_date).getTime(),
   );
 }
 
@@ -82,7 +80,7 @@ function createMatchForm(match: LeagueMatch): MatchMutationInput {
     round: match.round?.toString() ?? "",
     stage_label: match.stage_label ?? "",
     stage_order: match.stage_order?.toString() ?? "",
-    match_date: formatDateTimeLocal(match.match_date),
+    match_date: formatDateTimeInputValue(match.match_date),
     home_team_id: match.home_team_id,
     away_team_id: match.away_team_id,
     highlight_url: match.highlight_url ?? "",

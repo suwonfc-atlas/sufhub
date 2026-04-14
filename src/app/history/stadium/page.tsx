@@ -1,5 +1,6 @@
 import { StadiumGalleryBoard } from "@/components/history/stadium-gallery-board";
 import { getStadiums } from "@/lib/data/public";
+import { parseKstDate } from "@/lib/utils";
 
 export const metadata = {
   title: "경기장 갤러리",
@@ -10,7 +11,7 @@ function getArchiveYear(createdAt: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
     timeZone: "Asia/Seoul",
-  }).format(new Date(createdAt));
+  }).format(parseKstDate(createdAt));
 }
 
 export default async function HistoryStadiumPage() {

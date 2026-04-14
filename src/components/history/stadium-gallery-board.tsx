@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 
 import type { Stadium } from "@/types";
+import { parseKstDate } from "@/lib/utils";
 
 interface StadiumGalleryBoardProps {
   stadiums: Stadium[];
@@ -25,7 +26,7 @@ function getArchiveYear(stadium: Stadium) {
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
     timeZone: "Asia/Seoul",
-  }).format(new Date(stadium.created_at));
+  }).format(parseKstDate(stadium.created_at));
 }
 
 export function StadiumGalleryBoard({ stadiums }: StadiumGalleryBoardProps) {

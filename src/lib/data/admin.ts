@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import type {
   Chant,
+  ExperienceRule,
   GuideContent,
   HistoryTimeline,
   Inquiry,
@@ -21,6 +22,7 @@ import type {
   Stadium,
   Standing,
   Supporter,
+  UserAccount,
   Team,
   TicketArchive,
   Uniform,
@@ -723,6 +725,43 @@ export async function getAdminSupportersPage(page = 1) {
 
   if (error) return createEmptyPageResult<Supporter>(safePage)
   return createPageResult((data ?? []) as Supporter[], count, safePage)
+}
+
+export async function getAdminUsersPage(page = 1) {
+  const supabase = await createServerSupabaseClient()
+  if (!supabase) return createEmptyPageResult<UserAccount>(page)
+
+  const { from, to, page: safePage } = getPageRange(page)
+  const { data, count, error } = await supabase
+    .from("users")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to)
+
+  if (error) return createEmptyPageResult<UserAccount>(safePage)
+  return createPageResult((data ?? []) as UserAccount[], count, safePage)
+}
+
+export async function getAdminExperienceRules() {
+  const supabase = await createServerSupabaseClient()
+  if (!supabase) return [] as ExperienceRule[]
+
+  const { data, error } = await supabase
+    .from("experience_rules")
+    .select("*")
+    .order("action", { ascending: true })
+
+  if (error) return [] as ExperienceRule[]
+  return (data ?? []) as ExperienceRule[]
+}
+
+export async function getAdminUserById(id: string) {
+  const supabase = await createServerSupabaseClient()
+  if (!supabase) return null
+
+  const { data, error } = await supabase.from("users").select("*").eq("id", id).maybeSingle()
+  if (error) return null
+  return (data as UserAccount | null) ?? null
 }
 
 export async function getAdminInquiriesPage(

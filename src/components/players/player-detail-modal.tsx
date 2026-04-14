@@ -3,6 +3,7 @@
 import { Crown, X } from "lucide-react";
 
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { parseKstDate } from "@/lib/utils";
 
 interface PlayerDetailModalPlayer {
   name: string;
@@ -39,7 +40,7 @@ function formatBirthDate(value?: string | null) {
     month: "long",
     day: "numeric",
     timeZone: "Asia/Seoul",
-  }).format(new Date(value));
+  }).format(parseKstDate(value));
 }
 
 function formatStatNumber(value?: number | null, suffix = "") {

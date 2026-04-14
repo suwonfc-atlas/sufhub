@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getNoticeById } from "@/lib/data/public";
+import { parseKstDate } from "@/lib/utils";
 
 function formatDate(value: string | null) {
   if (!value) return "";
@@ -10,7 +11,7 @@ function formatDate(value: string | null) {
     month: "long",
     day: "numeric",
     timeZone: "Asia/Seoul",
-  }).format(new Date(value));
+  }).format(parseKstDate(value));
 }
 
 export default async function NoticeDetailPage({

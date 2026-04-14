@@ -17,13 +17,8 @@ import {
 } from "@/components/admin/admin-field-controls";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import type { AdminPageResult } from "@/lib/data/admin";
+import { formatDateTimeInputValue } from "@/lib/utils";
 import type { News } from "@/types";
-
-function formatDateTimeLocal(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
-}
 
 function createEmptyNewsForm(): NewsMutationInput {
   return {
@@ -43,7 +38,7 @@ function createNewsForm(item: News): NewsMutationInput {
     source: item.source ?? "",
     url: item.url,
     thumbnail_url: item.thumbnail_url ?? "",
-    published_at: formatDateTimeLocal(item.published_at),
+    published_at: formatDateTimeInputValue(item.published_at ?? ""),
     is_active: item.is_active,
   };
 }

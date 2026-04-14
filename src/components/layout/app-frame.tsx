@@ -15,14 +15,20 @@ const ChantPlayerHost = dynamic(
   { ssr: false },
 );
 
-export function AppFrame({ children }: { children: ReactNode }) {
+export function AppFrame({
+  children,
+  isAuthenticated,
+}: {
+  children: ReactNode;
+  isAuthenticated: boolean;
+}) {
   const pathname = usePathname();
   const isMapPage = pathname === "/map";
 
   return (
     <>
       <div className="hidden lg:block">
-        <SiteHeader />
+        <SiteHeader showNav={isAuthenticated} />
       </div>
       <main
         className={
@@ -35,8 +41,8 @@ export function AppFrame({ children }: { children: ReactNode }) {
           {children}
         </div>
       </main>
-      <ChantPlayerHost />
-      <MobileBottomNav />
+      {isAuthenticated ? <ChantPlayerHost /> : null}
+      {isAuthenticated ? <MobileBottomNav /> : null}
     </>
   );
 }

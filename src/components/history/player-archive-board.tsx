@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 
 import { SurfaceCard } from "@/components/ui/surface-card";
 import type { PlayerArchiveItem } from "@/lib/data/public";
+import { parseKstDate } from "@/lib/utils";
 import type { PlayerPosition } from "@/types";
 
 const positionLabels: Record<PlayerPosition | "all", string> = {
@@ -26,7 +27,7 @@ function formatBirthDate(value?: string | null) {
     month: "long",
     day: "numeric",
     timeZone: "Asia/Seoul",
-  }).format(new Date(value));
+  }).format(parseKstDate(value));
 }
 
 export function PlayerArchiveBoard({ players }: { players: PlayerArchiveItem[] }) {

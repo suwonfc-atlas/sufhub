@@ -1,4 +1,5 @@
 import type { CompetitionCode, LeagueMatch, Match, SeasonTeamLeague, Standing, Team } from "@/types";
+import { parseKstDate } from "@/lib/utils";
 
 function getPrimaryTeamFallback(teams: Team[]) {
   return teams.find((team) => team.is_primary) ?? teams.find((team) => team.name.includes("수원")) ?? null;
@@ -38,7 +39,7 @@ export function buildClubMatches(
   return [...leagueMatches]
     .filter((match) => match.home_team_id === resolvedTeamId || match.away_team_id === resolvedTeamId)
     .filter((match) => competitionCode === "all" || match.competition_code === competitionCode)
-    .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime())
+    .sort((a, b) => parseKstDate(a.match_date).getTime() - parseKstDate(b.match_date).getTime())
     .map((match) => {
       const venue = match.home_team_id === resolvedTeamId ? "home" : "away";
       const opponentTeam =
