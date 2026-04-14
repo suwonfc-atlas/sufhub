@@ -24,14 +24,14 @@ export function SupportersRosterButton({
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 backdrop-blur-[2px] md:items-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 pb-24 backdrop-blur-[2px] md:items-center md:pb-4">
           <button
             type="button"
             onClick={() => setOpen(false)}
             className="absolute inset-0"
             aria-label="후원회 명단 닫기"
           />
-          <div className="relative z-10 w-full max-w-4xl rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,247,255,0.98))] p-5 shadow-[0_30px_80px_rgba(15,23,42,0.28)] md:p-6">
+          <div className="relative z-10 flex w-full max-w-4xl flex-col rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,247,255,0.98))] p-5 shadow-[0_30px_80px_rgba(15,23,42,0.28)] md:max-h-[80vh] md:p-6 max-h-[calc(100dvh-140px)]">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="inline-flex rounded-full bg-[rgba(21,93,252,0.1)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--brand-blue)]">
@@ -42,7 +42,7 @@ export function SupportersRosterButton({
                     후원회 명단
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    SuFHub를 응원해 주신 분들을 입력 순서대로 소개합니다.
+                    SuFHub를 후원해 주신 분들의 입력 순서로 공개됩니다.
                   </p>
                 </div>
               </div>
@@ -56,7 +56,7 @@ export function SupportersRosterButton({
               </button>
             </div>
 
-            <div className="mt-5 max-h-[70vh] overflow-y-auto pr-1">
+            <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
               {supporters.length ? (
                 <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
                   {supporters.map((supporter) => (
