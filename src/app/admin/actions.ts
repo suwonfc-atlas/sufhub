@@ -20,7 +20,7 @@ type ServerSupabase = NonNullable<Awaited<ReturnType<typeof createServerSupabase
 
 type AdminSupabaseContext =
   | { kind: "error"; result: AdminMutationResult }
-  | { kind: "ok"; supabase: ServerSupabase };
+  | { kind: "ok"; supabase: ServerSupabase; userId: string };
 
 export interface AdminMutationResult {
   status: "success" | "error";
@@ -480,7 +480,7 @@ async function getAdminSupabase(): Promise<AdminSupabaseContext> {
     return { kind: "error", result: failure("관리자 권한이 필요합니다.") };
   }
 
-  return { kind: "ok", supabase };
+  return { kind: "ok", supabase, userId: user?.id ?? "" };
 }
 
 function revalidatePaths(paths: string[]) {
@@ -2221,7 +2221,7 @@ export async function suspendUserAccount(
       end_at: suspendedUntil,
       days,
       reason: normalizeNullableString(input.reason),
-      created_by: admin.userId,
+      created_by: admin.userId || null,
     });
 
     if (suspensionError) return failure(suspensionError.message);
@@ -2267,7 +2267,7 @@ export async function expelUserAccount(
       login_id: user.username,
       email: user.email.toLowerCase(),
       reason: normalizeNullableString(input.reason),
-      created_by: admin.userId,
+      created_by: admin.userId || null,
     });
 
     if (banError) return failure(banError.message);
