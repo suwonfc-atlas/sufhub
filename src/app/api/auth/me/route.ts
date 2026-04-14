@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { getUserFromSession } from "@/lib/auth/user";
+import type { UserAccount } from "@/types";
 
 export async function GET() {
-  const user = await getUserFromSession();
-  if (!user) {
+  const user = (await getUserFromSession()) as UserAccount | null;
+  if (!user || Array.isArray(user)) {
     return NextResponse.json({ user: null }, { status: 200 });
   }
 

@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { createPublicSupabaseClient } from "@/lib/supabase";
 import { createServiceSupabaseClient } from "@/lib/supabase/admin";
 import { formatKstDateTimeString, parseKstDate } from "@/lib/utils";
+import type { UserAccount } from "@/types";
 
 const SESSION_COOKIE = "sufhub_session";
 const SESSION_DAYS = 30;
@@ -85,7 +86,7 @@ export async function clearUserSession() {
   });
 }
 
-export async function getUserFromSession() {
+export async function getUserFromSession(): Promise<UserAccount | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value ?? null;
   if (!token) return null;
@@ -93,22 +94,32 @@ export async function getUserFromSession() {
   const supabase = createServiceSupabaseClient() ?? createPublicSupabaseClient();
   if (!supabase) return null;
 
-  const { data, error } = await supabase
+  const { data: session, error } = await supabase
     .from("user_sessions")
-    .select("user:users(*)")
+    .select("user_id, expires_at")
     .eq("session_token", token)
     .gt("expires_at", formatKstDateTimeString(new Date()))
     .maybeSingle();
 
-  if (error || !data?.user) {
+  if (error || !session?.user_id) {
+    return null;
+  }
+
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", session.user_id)
+    .maybeSingle();
+
+  if (userError || !user) {
     return null;
   }
 
   const isSuspended =
-    data.user.suspended_until &&
-    parseKstDate(data.user.suspended_until).getTime() > Date.now();
+    user.suspended_until &&
+    parseKstDate(user.suspended_until).getTime() > Date.now();
 
-  if (data.user.status === "expelled" || data.user.is_active === false || isSuspended) {
+  if (user.status === "expelled" || user.is_active === false || isSuspended) {
     if (supabase && token) {
       await supabase.from("user_sessions").delete().eq("session_token", token);
     }
@@ -124,5 +135,5 @@ export async function getUserFromSession() {
     return null;
   }
 
-  return data.user;
+  return user;
 }

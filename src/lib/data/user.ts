@@ -14,9 +14,9 @@ export async function getUserDashboardData(): Promise<UserDashboardData> {
   const supabase = createServiceSupabaseClient();
   const hasServiceAccess = Boolean(supabase);
 
-  if (!user || !supabase) {
+  if (!user || Array.isArray(user) || !supabase) {
     return {
-      user,
+      user: Array.isArray(user) ? null : user,
       experienceLogs: [],
       inquiries: [],
       hasServiceAccess,

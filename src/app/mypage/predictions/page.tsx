@@ -33,9 +33,9 @@ export default async function MyPredictionPage({
 }: {
   searchParams?: { season?: string };
 }) {
-  const user = await getUserFromSession();
+  const user = (await getUserFromSession()) as { id: string } | null;
 
-  if (!user) {
+  if (!user || Array.isArray(user)) {
     return (
       <div className="page-grid">
         <PageIntro

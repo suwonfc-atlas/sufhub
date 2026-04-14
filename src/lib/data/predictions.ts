@@ -227,7 +227,25 @@ export async function getCommunityPredictionData(): Promise<CommunityPredictionD
       ? matchPredictionRows.find((row) => row.user_id === user.id)?.choice ?? null
       : null;
 
-  const predictionRows = (allPredictions ?? []) as PredictionRow[];
+  const predictionRows = (allPredictions ?? []).map((row) => {
+    const raw = row as {
+      id?: string;
+      user_id?: string;
+      choice?: PredictionChoice;
+      match?: PredictionRow["match"] | PredictionRow["match"][];
+      user?: PredictionRow["user"] | PredictionRow["user"][];
+    };
+    const match = Array.isArray(raw.match) ? raw.match[0] ?? null : raw.match ?? null;
+    const userInfo = Array.isArray(raw.user) ? raw.user[0] ?? null : raw.user ?? null;
+
+    return {
+      id: raw.id ?? "",
+      user_id: raw.user_id ?? "",
+      choice: raw.choice ?? "win",
+      match,
+      user: userInfo,
+    } satisfies PredictionRow;
+  });
   const rankingMap = new Map<string, { nickname: string; total: number; hits: number }>();
 
   for (const prediction of predictionRows) {
@@ -361,21 +379,62 @@ export async function getPredictionHistoryData(
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
-  const normalized = (predictionRows ?? []) as Array<{
-    id: string;
-    choice: PredictionChoice;
-    match: {
-      match_date: string;
-      season_record?: { code?: string | null } | null;
-      home_team?: { name?: string | null; short_name?: string | null; logo_url?: string | null } | null;
-      away_team?: { name?: string | null; short_name?: string | null; logo_url?: string | null } | null;
-      home_team_id: string;
-      away_team_id: string;
-      home_score: number | null;
-      away_score: number | null;
-      status: "scheduled" | "live" | "finished";
-    } | null;
-  }>;
+  const normalized = (predictionRows ?? []).map((row) => {
+    const raw = row as {
+      id?: string;
+      choice?: PredictionChoice;
+      match?: {
+        match_date?: string;
+        season_record?: { code?: string | null } | { code?: string | null }[] | null;
+        home_team?: { name?: string | null; short_name?: string | null; logo_url?: string | null } | { name?: string | null; short_name?: string | null; logo_url?: string | null }[] | null;
+        away_team?: { name?: string | null; short_name?: string | null; logo_url?: string | null } | { name?: string | null; short_name?: string | null; logo_url?: string | null }[] | null;
+        home_team_id?: string;
+        away_team_id?: string;
+        home_score?: number | null;
+        away_score?: number | null;
+        status?: "scheduled" | "live" | "finished";
+      } | null | Array<{
+        match_date?: string;
+        season_record?: { code?: string | null }[] | { code?: string | null } | null;
+        home_team?: { name?: string | null; short_name?: string | null; logo_url?: string | null }[] | { name?: string | null; short_name?: string | null; logo_url?: string | null } | null;
+        away_team?: { name?: string | null; short_name?: string | null; logo_url?: string | null }[] | { name?: string | null; short_name?: string | null; logo_url?: string | null } | null;
+        home_team_id?: string;
+        away_team_id?: string;
+        home_score?: number | null;
+        away_score?: number | null;
+        status?: "scheduled" | "live" | "finished";
+      }>;
+    };
+
+    const matchRaw = Array.isArray(raw.match) ? raw.match[0] ?? null : raw.match ?? null;
+    const seasonRecord = Array.isArray(matchRaw?.season_record)
+      ? matchRaw?.season_record?.[0] ?? null
+      : matchRaw?.season_record ?? null;
+    const homeTeam = Array.isArray(matchRaw?.home_team)
+      ? matchRaw?.home_team?.[0] ?? null
+      : matchRaw?.home_team ?? null;
+    const awayTeam = Array.isArray(matchRaw?.away_team)
+      ? matchRaw?.away_team?.[0] ?? null
+      : matchRaw?.away_team ?? null;
+
+    return {
+      id: raw.id ?? "",
+      choice: raw.choice ?? "win",
+      match: matchRaw
+        ? {
+            match_date: matchRaw.match_date ?? "",
+            season_record: seasonRecord,
+            home_team: homeTeam,
+            away_team: awayTeam,
+            home_team_id: matchRaw.home_team_id ?? "",
+            away_team_id: matchRaw.away_team_id ?? "",
+            home_score: matchRaw.home_score ?? null,
+            away_score: matchRaw.away_score ?? null,
+            status: matchRaw.status ?? "scheduled",
+          }
+        : null,
+    };
+  });
 
   const seasons = Array.from(
     new Set(

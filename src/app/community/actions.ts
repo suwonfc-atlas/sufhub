@@ -26,8 +26,8 @@ export async function submitPrediction(params: {
   matchId: string;
   choice: PredictionChoice;
 }): Promise<PredictionSubmitResult> {
-  const user = await getUserFromSession();
-  if (!user) {
+  const user = (await getUserFromSession()) as { id: string } | null;
+  if (!user || Array.isArray(user)) {
     return failure("로그인이 필요합니다.");
   }
 

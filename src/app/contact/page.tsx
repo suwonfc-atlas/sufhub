@@ -1,6 +1,7 @@
 import { InquiryHub } from "@/components/contact/inquiry-hub";
 import { PageIntro } from "@/components/ui/page-intro";
 import { getUserFromSession } from "@/lib/auth/user";
+import type { UserAccount } from "@/types";
 import { getUserInquiries } from "@/lib/data/user";
 import { createServiceSupabaseClient } from "@/lib/supabase/admin";
 
@@ -10,8 +11,8 @@ export const metadata = {
 };
 
 export default async function ContactPage() {
-  const user = await getUserFromSession();
-  const inquiries = user ? await getUserInquiries(user.id, 50) : [];
+  const user = (await getUserFromSession()) as UserAccount | null;
+  const inquiries = user && !Array.isArray(user) ? await getUserInquiries(user.id, 50) : [];
   const hasServiceAccess = Boolean(createServiceSupabaseClient());
 
   return (

@@ -27,8 +27,8 @@ export const metadata = {
 };
 
 export default async function MyExperiencePage() {
-  const user = await getUserFromSession();
-  const logs = user ? await getUserExperienceLogs(user.id, 200) : [];
+  const user = (await getUserFromSession()) as { id: string } | null;
+  const logs = user && !Array.isArray(user) ? await getUserExperienceLogs(user.id, 200) : [];
 
   return (
     <div className="page-grid">

@@ -35,8 +35,8 @@ export async function submitInquiry(
   input: ContactInquiryInput,
 ): Promise<ContactInquiryResult> {
   try {
-    const user = await getUserFromSession();
-    if (!user) {
+    const user = (await getUserFromSession()) as { id: string; username: string; nickname?: string | null } | null;
+    if (!user || Array.isArray(user)) {
       return failure("로그인이 필요합니다.");
     }
 
