@@ -9,6 +9,8 @@ import type { ExperienceRule } from "@/types";
 const RULE_LABELS: Record<string, string> = {
   prediction_vote: "예측 투표 보상",
   prediction_hit: "예측 적중 보상",
+  rating_vote: "평점 입력 보상",
+  mom_vote: "MOM 투표 보상",
 };
 
 interface RuleForm {

@@ -302,7 +302,6 @@ export async function getAdminDashboardLineupContext(): Promise<AdminDashboardLi
       .from("player_seasons")
       .select("*, player:players(*), season_record:seasons(*), team:teams(*)")
       .eq("team_id", primaryTeamId)
-      .eq("is_active", true)
       .order("season", { ascending: false })
       .order("squad_number", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true }),

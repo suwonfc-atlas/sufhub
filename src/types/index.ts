@@ -241,6 +241,7 @@ export interface MatchLineup {
   team_id: string
   starters_player_ids: string[]
   bench_player_ids: string[]
+  rating_excluded_player_ids: string[]
   created_at: string
   updated_at: string
 }
@@ -272,6 +273,52 @@ export interface MatchPrediction {
   user_id: string
   match_id: string
   choice: PredictionChoice
+  created_at: string
+  updated_at: string
+}
+
+export interface MatchPlayerRating {
+  id: string
+  match_id: string
+  user_id: string
+  player_id: string
+  rating: number
+  comment?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MatchPlayerRatingLike {
+  id: string
+  rating_id: string
+  match_id: string
+  player_id: string
+  user_id: string
+  created_at: string
+}
+
+export interface MatchMomVote {
+  id: string
+  match_id: string
+  user_id: string
+  player_id: string
+  created_at: string
+  updated_at: string
+}
+
+export interface PlayerFanRatingResult {
+  id: string
+  match_id: string
+  player_id: string
+  fan_rating_average?: number | null
+  rating_vote_count: number
+  mom_vote_count: number
+  mom_rank?: number | null
+  is_mom_winner: boolean
+  top_comment?: string | null
+  top_comment_like_count: number
+  top_comment_rating_id?: string | null
+  settled_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -312,6 +359,11 @@ export interface PlayerStat {
   goals: number
   assists: number
   rating_average?: number | null
+  fan_rating_average?: number | null
+  fan_rating_matches?: number
+  fan_mom_count?: number
+  fan_top_comment?: string | null
+  fan_top_comment_likes?: number
   yellow_cards: number
   red_cards: number
   minutes_played: number

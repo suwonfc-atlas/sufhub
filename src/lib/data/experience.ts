@@ -1,7 +1,11 @@
 import { createPublicSupabaseClient } from "@/lib/supabase";
 import { createServiceSupabaseClient } from "@/lib/supabase/admin";
 
-export type ExperienceAction = "prediction_vote" | "prediction_hit";
+export type ExperienceAction =
+  | "prediction_vote"
+  | "prediction_hit"
+  | "rating_vote"
+  | "mom_vote";
 
 export interface ExperienceApplyResult {
   applied: boolean;

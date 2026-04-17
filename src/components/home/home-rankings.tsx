@@ -5,9 +5,9 @@ import { useState } from "react";
 
 import { PlayerDetailModal } from "@/components/players/player-detail-modal";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import type { HomePlayerLeaderMetric } from "@/lib/data/home-player-leaders";
 import type {
   HomeLeagueStandingRow,
-  HomePlayerLeaderMetric,
   HomePlayerLeaderRow,
 } from "@/lib/data/public";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,8 @@ const PLAYER_TABS: Array<{
   { id: "assists", label: "도움", emptyLabel: "도움 기록이 없습니다." },
   { id: "attack-point", label: "공격포인트", emptyLabel: "공격포인트 기록이 없습니다." },
   { id: "rating", label: "평균평점", emptyLabel: "평균평점 데이터가 없습니다." },
+  { id: "fan-rating", label: "팬평점", emptyLabel: "팬 평점 데이터가 없습니다." },
+  { id: "fan-mom", label: "팬MOM", emptyLabel: "팬 MOM 데이터가 없습니다." },
   { id: "minutes", label: "출전시간", emptyLabel: "출전시간 기록이 없습니다." },
   { id: "yellow-cards", label: "경고", emptyLabel: "경고 기록이 없습니다." },
   { id: "red-cards", label: "퇴장", emptyLabel: "퇴장 기록이 없습니다." },
@@ -137,6 +139,8 @@ export function HomeRankings({
     assists: [],
     "attack-point": [],
     rating: [],
+    "fan-rating": [],
+    "fan-mom": [],
     minutes: [],
     "yellow-cards": [],
     "red-cards": [],

@@ -89,6 +89,7 @@ export interface MatchLineupMutationInput {
   team_id: string;
   starters_player_ids: string[];
   bench_player_ids: string[];
+  rating_excluded_player_ids: string[];
 }
 
 export interface PlayerMutationInput {
@@ -1398,6 +1399,9 @@ export async function saveMatchLineup(
     const bench = Array.from(
       new Set(input.bench_player_ids.map((id) => normalizeString(id)).filter(Boolean)),
     ).filter((id) => !starters.includes(id));
+    const ratingExcluded = Array.from(
+      new Set(input.rating_excluded_player_ids.map((id) => normalizeString(id)).filter(Boolean)),
+    ).filter((id) => bench.includes(id));
 
     if (starters.length !== 11) {
       return failure("선발 11명을 정확히 선택해 주세요.");
@@ -1405,7 +1409,7 @@ export async function saveMatchLineup(
 
     const { data: match, error: matchError } = await admin.supabase
       .from("league_matches")
-      .select("id, season_id, home_team_id, away_team_id, status")
+      .select("id, season_id, home_team_id, away_team_id, status, season_record:seasons(code)")
       .eq("id", matchId)
       .single();
 
@@ -1414,18 +1418,34 @@ export async function saveMatchLineup(
       return failure("해당 경기의 참가 팀 라인업만 저장할 수 있습니다.");
     }
 
+    const matchSeasonCode =
+      ((match as { season_record?: { code?: string | null } | Array<{ code?: string | null }> | null })
+        .season_record &&
+      Array.isArray((match as { season_record?: unknown }).season_record)
+        ? ((match as { season_record?: Array<{ code?: string | null }> }).season_record?.[0]?.code ?? null)
+        : ((match as { season_record?: { code?: string | null } | null }).season_record?.code ?? null)) ??
+      null;
+
     const selectedPlayerIds = [...starters, ...bench];
     if (!selectedPlayerIds.length) {
       return failure("라인업 선수를 선택해 주세요.");
     }
 
-    const { data: rosterRows, error: rosterError } = await admin.supabase
+    let rosterQuery = admin.supabase
       .from("player_seasons")
       .select("player_id")
-      .eq("season_id", match.season_id)
       .eq("team_id", teamId)
-      .eq("is_active", true)
       .in("player_id", selectedPlayerIds);
+
+    if (matchSeasonCode) {
+      rosterQuery = rosterQuery.or(
+        `season_id.eq.${match.season_id},season.eq.${matchSeasonCode}`,
+      );
+    } else {
+      rosterQuery = rosterQuery.eq("season_id", match.season_id);
+    }
+
+    const { data: rosterRows, error: rosterError } = await rosterQuery;
 
     if (rosterError) return failure(rosterError.message);
 
@@ -1443,6 +1463,7 @@ export async function saveMatchLineup(
       team_id: teamId,
       starters_player_ids: starters,
       bench_player_ids: bench,
+      rating_excluded_player_ids: ratingExcluded,
     };
 
     const { error } = await admin.supabase

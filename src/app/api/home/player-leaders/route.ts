@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { getHomePlayerLeadersData } from "@/lib/data/public";
-import type { HomePlayerLeaderMetric } from "@/lib/data/public";
+import {
+  getResolvedHomePlayerLeadersData,
+  type HomePlayerLeaderMetric,
+} from "@/lib/data/home-player-leaders";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +12,8 @@ const VALID_METRICS: HomePlayerLeaderMetric[] = [
   "assists",
   "attack-point",
   "rating",
+  "fan-rating",
+  "fan-mom",
   "minutes",
   "yellow-cards",
   "red-cards",
@@ -24,6 +28,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ rows: [] }, { status: 400 });
   }
 
-  const rows = await getHomePlayerLeadersData(season, metric);
+  const rows = await getResolvedHomePlayerLeadersData(season, metric);
   return NextResponse.json({ rows });
 }

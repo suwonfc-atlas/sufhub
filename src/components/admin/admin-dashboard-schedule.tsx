@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { X } from "lucide-react";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -112,6 +112,7 @@ function createLineupForm(
     team_id: primaryTeamId,
     starters_player_ids: saved?.starters_player_ids ?? [],
     bench_player_ids: saved?.bench_player_ids ?? [],
+    rating_excluded_player_ids: saved?.rating_excluded_player_ids ?? [],
   };
 }
 
@@ -195,7 +196,7 @@ export function AdminDashboardSchedule({
       .filter(
         (item) =>
           item.team_id === primaryTeamId &&
-          item.season_id === selectedMatch.season_id &&
+          (item.season_id === selectedMatch.season_id || item.season === selectedMatch.season) &&
           item.player,
       )
       .sort((left, right) => {
@@ -219,6 +220,54 @@ export function AdminDashboardSchedule({
     () => (lineupForm?.bench_player_ids ?? []).map((id) => lineupPlayersById.get(id)).filter(Boolean) as PlayerSeason[],
     [lineupForm, lineupPlayersById],
   );
+  const ratingExcludedSet = useMemo(
+    () => new Set(lineupForm?.rating_excluded_player_ids ?? []),
+    [lineupForm],
+  );
+
+  useEffect(() => {
+    if (!lineupForm) return;
+
+    const validPlayerIds = new Set(seasonRoster.map((player) => player.player_id));
+    const nextStarters = lineupForm.starters_player_ids.filter((id) => validPlayerIds.has(id));
+    const nextBench = lineupForm.bench_player_ids.filter(
+      (id) => validPlayerIds.has(id) && !nextStarters.includes(id),
+    );
+    const nextExcluded = lineupForm.rating_excluded_player_ids.filter((id) =>
+      nextBench.includes(id),
+    );
+
+    const changed =
+      nextStarters.length !== lineupForm.starters_player_ids.length ||
+      nextBench.length !== lineupForm.bench_player_ids.length ||
+      nextExcluded.length !== lineupForm.rating_excluded_player_ids.length;
+
+    if (!changed) return;
+
+    setLineupForm((current) =>
+      current
+        ? (() => {
+            const sanitizedStarters = current.starters_player_ids.filter((id) =>
+              validPlayerIds.has(id),
+            );
+            const sanitizedBench = current.bench_player_ids.filter(
+              (id) => validPlayerIds.has(id) && !sanitizedStarters.includes(id),
+            );
+            const sanitizedExcluded = current.rating_excluded_player_ids.filter((id) =>
+              sanitizedBench.includes(id),
+            );
+
+            return {
+              ...current,
+              starters_player_ids: sanitizedStarters,
+              bench_player_ids: sanitizedBench,
+              rating_excluded_player_ids: sanitizedExcluded,
+            };
+          })()
+        : current,
+    );
+    setLineupHint("기존 라인업에 현재 시즌 선수 목록과 맞지 않는 항목이 있어 자동으로 정리했습니다. 확인 후 다시 저장해 주세요.");
+  }, [lineupForm, seasonRoster]);
 
   const handleSelectMatch = (match: LeagueMatch) => {
     setSelectedMatchId(match.id);
@@ -284,6 +333,7 @@ export function AdminDashboardSchedule({
           ...current,
           starters_player_ids: [...startersSet, playerId],
           bench_player_ids: benchSet,
+          rating_excluded_player_ids: current.rating_excluded_player_ids.filter((id) => id !== playerId),
         };
       }
 
@@ -301,6 +351,27 @@ export function AdminDashboardSchedule({
         ...current,
         starters_player_ids: startersSet,
         bench_player_ids: benchSet,
+        rating_excluded_player_ids: current.rating_excluded_player_ids.filter((id) => id !== playerId),
+      };
+    });
+  };
+
+  const toggleRatingExclusion = (playerId: string) => {
+    setLineupForm((current) => {
+      if (!current) return current;
+      if (!current.bench_player_ids.includes(playerId)) {
+        return {
+          ...current,
+          rating_excluded_player_ids: current.rating_excluded_player_ids.filter((id) => id !== playerId),
+        };
+      }
+
+      const alreadyExcluded = current.rating_excluded_player_ids.includes(playerId);
+      return {
+        ...current,
+        rating_excluded_player_ids: alreadyExcluded
+          ? current.rating_excluded_player_ids.filter((id) => id !== playerId)
+          : [...current.rating_excluded_player_ids, playerId],
       };
     });
   };
@@ -451,16 +522,21 @@ export function AdminDashboardSchedule({
                 {starters.map((player) => (
                   <div
                     key={`starter-${player.id}`}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"
+                    className="grid gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm"
                   >
-                    <span className="font-semibold text-slate-800">{getRosterLabel(player)}</span>
-                    <button
-                      type="button"
-                      onClick={() => assignLineupPlayer(player.player_id, "remove")}
-                      className="text-xs font-semibold text-rose-600"
-                    >
-                      제외
-                    </button>
+                    <span className="break-keep text-sm font-semibold text-slate-800">
+                      {getRosterLabel(player)}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-semibold text-sky-700">선발 고정</span>
+                      <button
+                        type="button"
+                        onClick={() => assignLineupPlayer(player.player_id, "remove")}
+                        className="rounded-full bg-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-700"
+                      >
+                        제거
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -472,23 +548,46 @@ export function AdminDashboardSchedule({
           <div className="rounded-2xl border border-slate-200 bg-white p-3">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-bold text-slate-900">후보</p>
-              <span className="text-xs font-semibold text-slate-500">{bench.length}명</span>
+              <span className="text-xs font-semibold text-slate-500">
+                {bench.length}명 / 평점 제외 {lineupForm.rating_excluded_player_ids.length}명
+              </span>
             </div>
             {bench.length ? (
               <div className="grid gap-2">
                 {bench.map((player) => (
                   <div
                     key={`bench-${player.id}`}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"
+                    className="grid gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm"
                   >
-                    <span className="font-semibold text-slate-800">{getRosterLabel(player)}</span>
-                    <button
-                      type="button"
-                      onClick={() => assignLineupPlayer(player.player_id, "remove")}
-                      className="text-xs font-semibold text-rose-600"
-                    >
-                      제외
-                    </button>
+                    <div className="min-w-0 space-y-1">
+                      <span className="block break-keep font-semibold text-slate-800">
+                        {getRosterLabel(player)}
+                      </span>
+                      <span className="mt-1 block text-xs font-semibold text-slate-500">
+                        {ratingExcludedSet.has(player.player_id) ? "평점 제외" : "평점 포함"}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleRatingExclusion(player.player_id)}
+                        className={cn(
+                          "rounded-full px-3 py-1.5 text-xs font-semibold",
+                          ratingExcludedSet.has(player.player_id)
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-emerald-100 text-emerald-700",
+                        )}
+                      >
+                        {ratingExcludedSet.has(player.player_id) ? "투표 제외" : "투표 포함"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => assignLineupPlayer(player.player_id, "remove")}
+                        className="text-xs font-semibold text-rose-600"
+                      >
+                        제거
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -513,10 +612,10 @@ export function AdminDashboardSchedule({
                 return (
                   <div
                     key={player.id}
-                    className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                    className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">
+                      <p className="break-keep text-sm font-semibold text-slate-900">
                         {getRosterLabel(player)}
                         {player.is_captain ? " (C)" : ""}
                       </p>
@@ -525,7 +624,7 @@ export function AdminDashboardSchedule({
                         {player.is_injured && player.injury_detail ? ` / ${player.injury_detail}` : ""}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => assignLineupPlayer(player.player_id, "starter")}
@@ -550,6 +649,20 @@ export function AdminDashboardSchedule({
                       >
                         후보
                       </button>
+                      {isBench ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleRatingExclusion(player.player_id)}
+                          className={cn(
+                            "rounded-full px-3 py-1.5 text-xs font-semibold",
+                            ratingExcludedSet.has(player.player_id)
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200",
+                          )}
+                        >
+                          {ratingExcludedSet.has(player.player_id) ? "평점 제외" : "평점 포함"}
+                        </button>
+                      ) : null}
                       {(isStarter || isBench) ? (
                         <button
                           type="button"
@@ -572,6 +685,9 @@ export function AdminDashboardSchedule({
         </div>
 
         <AdminFormMessage message={lineupHint} status="error" />
+        <p className="text-xs text-slate-500">
+          후보 중 실제로 출전하지 않은 선수는 `평점 제외`로 바꾸면 사용자 평점 대상에서 빠집니다.
+        </p>
         <AdminFormMessage message={lineupResult?.message ?? null} status={lineupResult?.status} />
 
         <div className="sticky bottom-0 z-10 -mx-1 bg-white/95 px-1 pb-1 pt-2 backdrop-blur">
