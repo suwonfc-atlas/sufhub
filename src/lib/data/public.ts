@@ -29,7 +29,7 @@ import type {
 } from "@/types"
 
 import { buildClubMatches, buildStandings, getPrimaryTeam } from "./league"
-import { parseKstDate } from "@/lib/utils"
+import { formatRoundLabel, parseKstDate } from "@/lib/utils"
 
 export type HomePlayerLeaderMetric =
   | "goals"
@@ -77,6 +77,11 @@ export interface HomePlayerLeaderRow {
   minutesPlayed: number
   yellowCards: number
   redCards: number
+  fanRatingAverage?: number | null
+  fanRatingMatches?: number
+  fanMomCount?: number
+  fanTopComment?: string | null
+  fanTopCommentLikes?: number
   displayValue: string
 }
 
@@ -158,6 +163,14 @@ const HOME_PLAYER_METRICS: HomePlayerLeaderMetric[] = [
   "red-cards",
 ]
 
+function relationOne<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+
+  return value ?? null
+}
+
 function formatHomePlayerMetricValue(metric: HomePlayerLeaderMetric, value: number) {
   switch (metric) {
     case "rating":
@@ -231,6 +244,11 @@ function toHomePlayerRows(stats: PlayerStat[], metric: HomePlayerLeaderMetric) {
       minutesPlayed: stat.minutes_played,
       yellowCards: stat.yellow_cards,
       redCards: stat.red_cards,
+      fanRatingAverage: stat.fan_rating_average ?? null,
+      fanRatingMatches: stat.fan_rating_matches ?? 0,
+      fanMomCount: stat.fan_mom_count ?? 0,
+      fanTopComment: stat.fan_top_comment ?? null,
+      fanTopCommentLikes: stat.fan_top_comment_likes ?? 0,
       value: getHomePlayerMetricValue(stat, metric),
     }))
     .filter((row) => row.value !== null)
@@ -255,6 +273,11 @@ function toHomePlayerRows(stats: PlayerStat[], metric: HomePlayerLeaderMetric) {
       minutesPlayed: row.minutesPlayed,
       yellowCards: row.yellowCards,
       redCards: row.redCards,
+      fanRatingAverage: row.fanRatingAverage,
+      fanRatingMatches: row.fanRatingMatches,
+      fanMomCount: row.fanMomCount,
+      fanTopComment: row.fanTopComment,
+      fanTopCommentLikes: row.fanTopCommentLikes,
       displayValue: formatHomePlayerMetricValue(metric, row.value ?? 0),
     }))
 }
@@ -333,6 +356,10 @@ function getMonthLabel(matchDate: string) {
     month: "long",
     timeZone: "Asia/Seoul",
   }).format(parseKstDate(matchDate))
+}
+
+function getArchiveRoundLabel(round: number | null, stageLabel: string | null) {
+  return stageLabel?.trim() || formatRoundLabel(round) || "-"
 }
 
 function sortCompetitionFilters(
@@ -1265,6 +1292,29 @@ export interface PlayerArchiveItem extends Player {
 
 export interface PlayerArchiveDetail extends PlayerArchiveItem {
   stats: PlayerStat[]
+  fanSummary: {
+    season: string
+    fanRatingAverage: number | null
+    fanRatingMatches: number
+    fanMomCount: number
+    fanTopComment: string | null
+    fanTopCommentLikes: number
+  } | null
+  recentFanResults: Array<{
+    id: string
+    matchId: string
+    season: string
+    competition: string
+    roundLabel: string
+    matchDate: string
+    opponentName: string
+    fanRatingAverage: number | null
+    ratingVoteCount: number
+    momVoteCount: number
+    isMomWinner: boolean
+    topComment: string | null
+    topCommentLikeCount: number
+  }>
 }
 
 export async function getPlayersArchive() {
@@ -1320,9 +1370,109 @@ export async function getPlayerArchiveDetail(id: string) {
     return null
   }
 
+  const playerStats = stats
+    .filter((stat) => stat.player_id === id)
+    .sort((left, right) => right.season.localeCompare(left.season))
+
+  const fanSummarySource =
+    playerStats.find(
+      (stat) =>
+        (stat.fan_rating_matches ?? 0) > 0 ||
+        (stat.fan_mom_count ?? 0) > 0 ||
+        Boolean(stat.fan_top_comment),
+    ) ?? null
+
+  const supabase = createPublicSupabaseClient()
+  let recentFanResults: PlayerArchiveDetail["recentFanResults"] = []
+  const playerTeamIds = new Set(player.player_seasons.map((season) => season.team_id).filter(Boolean))
+
+  if (supabase) {
+    const { data: fanResultRows } = await supabase
+      .from("player_fan_rating_results")
+      .select(
+        "id, match_id, fan_rating_average, rating_vote_count, mom_vote_count, is_mom_winner, top_comment, top_comment_like_count, match:league_matches(match_date, competition, round, stage_label, season_record:seasons(code), home_team_id, away_team_id, home_team:teams!league_matches_home_team_id_fkey(name, short_name), away_team:teams!league_matches_away_team_id_fkey(name, short_name))",
+      )
+      .eq("player_id", id)
+      .order("settled_at", { ascending: false })
+      .limit(5)
+
+    recentFanResults = ((fanResultRows ?? []) as Array<{
+      id?: string
+      match_id?: string
+      fan_rating_average?: number | null
+      rating_vote_count?: number
+      mom_vote_count?: number
+      is_mom_winner?: boolean
+      top_comment?: string | null
+      top_comment_like_count?: number
+      match?:
+        | {
+            match_date?: string
+            competition?: string
+            round?: number | null
+            stage_label?: string | null
+            home_team_id?: string
+            away_team_id?: string
+            season_record?: { code?: string | null } | Array<{ code?: string | null }> | null
+            home_team?: { name?: string | null; short_name?: string | null } | Array<{ name?: string | null; short_name?: string | null }> | null
+            away_team?: { name?: string | null; short_name?: string | null } | Array<{ name?: string | null; short_name?: string | null }> | null
+          }
+        | Array<{
+            match_date?: string
+            competition?: string
+            round?: number | null
+            stage_label?: string | null
+            home_team_id?: string
+            away_team_id?: string
+            season_record?: { code?: string | null } | Array<{ code?: string | null }> | null
+            home_team?: { name?: string | null; short_name?: string | null } | Array<{ name?: string | null; short_name?: string | null }> | null
+            away_team?: { name?: string | null; short_name?: string | null } | Array<{ name?: string | null; short_name?: string | null }> | null
+          }>
+        | null
+    }>)
+      .map((row) => {
+        const match = relationOne(row.match)
+        const seasonRecord = relationOne(match?.season_record)
+        const homeTeam = relationOne(match?.home_team)
+        const awayTeam = relationOne(match?.away_team)
+        const isHome = playerTeamIds.has(match?.home_team_id ?? "")
+        const opponentName = isHome
+          ? awayTeam?.short_name ?? awayTeam?.name ?? "상대팀"
+          : homeTeam?.short_name ?? homeTeam?.name ?? "상대팀"
+
+        return {
+          id: row.id ?? "",
+          matchId: row.match_id ?? "",
+          season: seasonRecord?.code ?? "",
+          competition: match?.competition ?? "경기",
+          roundLabel: getArchiveRoundLabel(match?.round ?? null, match?.stage_label ?? null),
+          matchDate: match?.match_date ?? "",
+          opponentName,
+          fanRatingAverage: row.fan_rating_average ?? null,
+          ratingVoteCount: row.rating_vote_count ?? 0,
+          momVoteCount: row.mom_vote_count ?? 0,
+          isMomWinner: Boolean(row.is_mom_winner),
+          topComment: row.top_comment ?? null,
+          topCommentLikeCount: row.top_comment_like_count ?? 0,
+        }
+      })
+      .filter((row) => row.id && row.matchId)
+  }
+
   return {
     ...player,
-    stats: stats.filter((stat) => stat.player_id === id),
+    stats: playerStats,
+    fanSummary: fanSummarySource
+      ? {
+          season: fanSummarySource.season,
+          fanRatingAverage: fanSummarySource.fan_rating_average ?? null,
+          fanRatingMatches: fanSummarySource.fan_rating_matches ?? 0,
+          fanMomCount: fanSummarySource.fan_mom_count ?? 0,
+          fanTopComment: fanSummarySource.fan_top_comment ?? null,
+          fanTopCommentLikes: fanSummarySource.fan_top_comment_likes ?? 0,
+        }
+      : null,
+    recentFanResults,
   } as PlayerArchiveDetail
 }
 

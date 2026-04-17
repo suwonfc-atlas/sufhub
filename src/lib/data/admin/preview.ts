@@ -5,6 +5,7 @@ export const adminSections = [
   { href: "/admin/matches", label: "경기" },
   { href: "/admin/standings", label: "자동 순위" },
   { href: "/admin/players", label: "선수 / 스탯" },
+  { href: "/admin/fan-awards", label: "팬 어워즈" },
   { href: "/admin/guide", label: "가이드 / 채널" },
   { href: "/admin/history", label: "히스토리" },
   { href: "/admin/map", label: "캐슬클럽" },

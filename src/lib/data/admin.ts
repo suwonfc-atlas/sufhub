@@ -29,6 +29,7 @@ import type {
 } from "@/types"
 
 import { buildStandings } from "./league"
+import { getFanRatingSettlementSummary, type FanRatingSettlementSummary } from "./fan-rating-settlement"
 
 export const ADMIN_PAGE_SIZE = 10
 const ADMIN_BULK_FETCH_SIZE = 1000
@@ -53,6 +54,8 @@ export interface AdminDashboardLineupContext {
   roster: PlayerSeason[]
   lineups: MatchLineup[]
 }
+
+export interface AdminDashboardFanRatingContext extends FanRatingSettlementSummary {}
 
 function normalizePage(page?: number) {
   return page && page > 0 ? Math.floor(page) : 1
@@ -317,6 +320,19 @@ export async function getAdminDashboardLineupContext(): Promise<AdminDashboardLi
     roster: (rosterData ?? []) as PlayerSeason[],
     lineups: (lineupsData ?? []) as MatchLineup[],
   }
+}
+
+export async function getAdminDashboardFanRatingContext(): Promise<AdminDashboardFanRatingContext> {
+  const supabase = await createServerSupabaseClient()
+  if (!supabase) {
+    return {
+      pendingCount: 0,
+      settledCount: 0,
+      openMatch: null,
+    }
+  }
+
+  return getFanRatingSettlementSummary(supabase)
 }
 
 export async function getAdminMatchesPage(

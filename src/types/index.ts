@@ -284,6 +284,10 @@ export interface MatchPlayerRating {
   player_id: string
   rating: number
   comment?: string | null
+  is_hidden?: boolean
+  is_featured?: boolean
+  featured_at?: string | null
+  featured_by?: string | null
   created_at: string
   updated_at: string
 }
@@ -321,6 +325,50 @@ export interface PlayerFanRatingResult {
   settled_at?: string | null
   created_at: string
   updated_at: string
+}
+
+export interface FanAwardMonthlyResult {
+  id: string
+  season_id: string
+  award_month: string
+  player_id: string
+  average_rating: number | null
+  mom_count: number
+  match_count: number
+  vote_count: number
+  top_comment: string | null
+  top_comment_like_count: number
+  top_comment_rating_id?: string | null
+  rank: number
+  is_winner: boolean
+  confirmed_at: string
+  confirmed_by?: string | null
+  created_at: string
+  updated_at: string
+  season?: Season | null
+  player?: Player | null
+}
+
+export interface FanAwardSeasonResult {
+  id: string
+  season_id: string
+  player_id: string
+  average_rating: number | null
+  mom_count: number
+  monthly_award_count: number
+  match_count: number
+  vote_count: number
+  top_comment: string | null
+  top_comment_like_count: number
+  top_comment_rating_id?: string | null
+  rank: number
+  is_mvp: boolean
+  confirmed_at: string
+  confirmed_by?: string | null
+  created_at: string
+  updated_at: string
+  season?: Season | null
+  player?: Player | null
 }
 
 export interface ExperienceRule {

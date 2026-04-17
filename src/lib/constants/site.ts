@@ -63,7 +63,7 @@ export const quickLinks = [
   {
     href: "/history",
     title: "역대 시즌",
-    description: "시즌별 순위와 수원FC 일정, 리그 기록을 확인합니다.",
+    description: "시즌별 순위와 수원FC 일정, 리그 기록을 함께 확인합니다.",
     icon: "history",
   },
   {
@@ -121,8 +121,18 @@ export const historyPreviewSections: PreviewSection[] = [
     description: "시즌별 순위와 수원FC 일정, 리그 기록을 확인합니다.",
   },
   {
+    href: "/history/fan-awards",
+    title: "팬 어워즈",
+    description: "월간 수상자와 시즌 MVP 스냅샷을 시즌별로 확인합니다.",
+  },
+  {
+    href: "/history/fan-ratings",
+    title: "팬 평점 아카이브",
+    description: "경기별 팬 평점과 MOM, 대표 한줄평 기록을 모아봅니다.",
+  },
+  {
     href: "/history/timeline",
-    title: "구단 연혁",
+    title: "구단 연표",
     description: "중요했던 시즌과 순간들을 연도별로 정리했습니다.",
   },
   {
@@ -159,4 +169,7 @@ export const mapCategoryLabels: Record<string, string> = {
   parking: "주차",
   stay: "숙소",
   etc: "기타",
+  restaurant: "식당",
+  cafe: "카페",
+  other: "기타",
 };

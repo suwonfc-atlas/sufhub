@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   saveMatch,
   saveMatchLineup,
+  settlePendingFanRatings,
   type AdminMutationResult,
   type MatchLineupMutationInput,
   type MatchMutationInput,
@@ -19,9 +20,10 @@ import {
 import { AdminSectionTabs } from "@/components/admin/admin-section-tabs";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { cn, formatDateTimeInputValue, formatRoundLabel, parseKstDate } from "@/lib/utils";
+import type { AdminDashboardFanRatingContext } from "@/lib/data/admin";
 import type { LeagueMatch, MatchLineup, MatchStatus, PlayerSeason, Season, Team } from "@/types";
 
-function formatDateLabel(value: string) {
+function formatMatchDateLabel(value: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     month: "short",
     day: "numeric",
@@ -132,6 +134,7 @@ export function AdminDashboardSchedule({
   primaryTeamId,
   roster,
   lineups,
+  fanRatingContext,
 }: {
   matches: LeagueMatch[];
   teams: Team[];
@@ -139,6 +142,7 @@ export function AdminDashboardSchedule({
   primaryTeamId: string | null;
   roster: PlayerSeason[];
   lineups: MatchLineup[];
+  fanRatingContext: AdminDashboardFanRatingContext;
 }) {
   const router = useRouter();
   const defaultSeasonId = seasons.find((season) => season.is_current)?.id ?? seasons[0]?.id ?? "";
@@ -162,9 +166,11 @@ export function AdminDashboardSchedule({
   const [result, setResult] = useState<AdminMutationResult | null>(null);
   const [lineupResult, setLineupResult] = useState<AdminMutationResult | null>(null);
   const [lineupHint, setLineupHint] = useState<string | null>(null);
+  const [settlementResult, setSettlementResult] = useState<AdminMutationResult | null>(null);
   const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
   const [isSavingMatch, startMatchTransition] = useTransition();
   const [isSavingLineup, startLineupTransition] = useTransition();
+  const [isSettling, startSettlementTransition] = useTransition();
 
   const seasonOptions = useMemo(
     () => seasons.map((season) => ({ label: season.code, value: season.id })),
@@ -423,7 +429,7 @@ export function AdminDashboardSchedule({
               : selectedMatch.stage_label
                 ? ` / ${selectedMatch.stage_label}`
                 : ""}{" "}
-            / {formatDateLabel(selectedMatch.match_date)}
+            / {formatMatchDateLabel(selectedMatch.match_date)}
           </p>
         </div>
 
@@ -704,6 +710,64 @@ export function AdminDashboardSchedule({
     );
   };
 
+  const renderFanRatingSettlement = () => (
+    <div className="grid gap-4">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <p className="text-sm font-semibold text-slate-900">팬 평점 정산</p>
+        <p className="mt-1 text-xs text-slate-500">
+          가장 최근 종료 경기는 팬 평점 입력 기간으로 열어두고, 그 이전 종료 경기만 정산합니다.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl bg-white px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+            정산 대기
+          </p>
+          <p className="mt-2 text-base font-black text-slate-950">
+            {fanRatingContext.pendingCount}경기
+          </p>
+        </div>
+        <div className="rounded-2xl bg-white px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+            현재 열려 있는 경기
+          </p>
+          <p className="mt-2 text-sm font-black text-slate-950">
+            {fanRatingContext.openMatch?.title ?? "없음"}
+          </p>
+          {fanRatingContext.openMatch ? (
+            <p className="mt-1 text-xs text-slate-500">
+              {fanRatingContext.openMatch.seasonCode} / {fanRatingContext.openMatch.roundLabel} /{" "}
+              {formatMatchDateLabel(fanRatingContext.openMatch.matchDate)}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <AdminFormMessage
+        message={settlementResult?.message ?? null}
+        status={settlementResult?.status}
+      />
+
+      <button
+        type="button"
+        disabled={isSettling}
+        onClick={() => {
+          startSettlementTransition(async () => {
+            const next = await settlePendingFanRatings();
+            setSettlementResult(next);
+            if (next.status === "success") {
+              router.refresh();
+            }
+          });
+        }}
+        className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white"
+      >
+        {isSettling ? "정산 중..." : "팬 평점 정산 실행"}
+      </button>
+    </div>
+  );
+
   return (
     <>
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.95fr)]">
@@ -764,7 +828,7 @@ export function AdminDashboardSchedule({
                             ? ` / ${match.stage_label}`
                             : ""}
                       </span>
-                      <span>{formatDateLabel(match.match_date)}</span>
+                      <span>{formatMatchDateLabel(match.match_date)}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
@@ -811,6 +875,8 @@ export function AdminDashboardSchedule({
           {renderMatchEditor()}
           {selectedMatch ? <div className="h-px bg-slate-100" /> : null}
           {renderLineupEditor()}
+          <div className="h-px bg-slate-100" />
+          {renderFanRatingSettlement()}
         </SurfaceCard>
       </div>
 
@@ -844,6 +910,8 @@ export function AdminDashboardSchedule({
               {renderMatchEditor()}
               <div className="h-px bg-slate-100" />
               {renderLineupEditor()}
+              <div className="h-px bg-slate-100" />
+              {renderFanRatingSettlement()}
             </div>
           </div>
         </div>

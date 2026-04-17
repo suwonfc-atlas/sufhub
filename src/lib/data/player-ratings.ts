@@ -32,6 +32,7 @@ export interface CommunityPlayerRatingComment {
   likeCount: number;
   likedByMe: boolean;
   isMine: boolean;
+  isFeatured: boolean;
   createdAt: string;
 }
 
@@ -66,7 +67,12 @@ export interface CommunityPlayerRatingsData {
 }
 
 function emptyRatingsData(
-  partial?: Partial<Pick<CommunityPlayerRatingsData, "match" | "primaryTeam" | "userId" | "message">>,
+  partial?: Partial<
+    Pick<
+      CommunityPlayerRatingsData,
+      "match" | "primaryTeam" | "userId" | "message"
+    >
+  >,
 ): CommunityPlayerRatingsData {
   return {
     match: partial?.match ?? null,
@@ -84,7 +90,9 @@ function emptyRatingsData(
   };
 }
 
-function sortPlayers<T extends { position: string; squadNumber: number | null; name: string }>(players: T[]) {
+function sortPlayers<
+  T extends { position: string; squadNumber: number | null; name: string },
+>(players: T[]) {
   return [...players].sort((left, right) => {
     const positionGap =
       (POSITION_ORDER[left.position] ?? 99) - (POSITION_ORDER[right.position] ?? 99);
@@ -106,6 +114,38 @@ function getRatingEligiblePlayerIds(lineup: MatchLineup) {
   return [...lineup.starters_player_ids, ...lineup.bench_player_ids].filter(
     (playerId) => !excluded.has(playerId),
   );
+}
+
+function buildComments(
+  playerId: string,
+  ratings: MatchPlayerRating[],
+  likeCountByRatingId: Map<string, number>,
+  likedRatingIds: Set<string>,
+  nicknameMap: Map<string, string>,
+  myUserId: string | null,
+) {
+  return ratings
+    .filter((row) => Boolean(row.comment?.trim()) && !row.is_hidden)
+    .map((row) => ({
+      ratingId: row.id,
+      playerId,
+      userId: row.user_id,
+      nickname: nicknameMap.get(row.user_id) ?? "익명",
+      rating: row.rating,
+      comment: row.comment?.trim() ?? "",
+      likeCount: likeCountByRatingId.get(row.id) ?? 0,
+      likedByMe: likedRatingIds.has(row.id),
+      isMine: myUserId === row.user_id,
+      isFeatured: Boolean(row.is_featured),
+      createdAt: row.created_at,
+    }))
+    .sort(
+      (left, right) =>
+        Number(right.isFeatured) - Number(left.isFeatured) ||
+        right.likeCount - left.likeCount ||
+        parseKstDate(right.createdAt).getTime() -
+          parseKstDate(left.createdAt).getTime(),
+    );
 }
 
 export async function getCommunityPlayerRatingsData(): Promise<CommunityPlayerRatingsData> {
@@ -132,7 +172,7 @@ export async function getCommunityPlayerRatingsData(): Promise<CommunityPlayerRa
   if (!primaryTeam) {
     return emptyRatingsData({
       userId: user?.id ?? null,
-      message: "내 팀 정보가 없습니다.",
+      message: "내 팀 정보를 찾지 못했습니다.",
     });
   }
 
@@ -171,7 +211,7 @@ export async function getCommunityPlayerRatingsData(): Promise<CommunityPlayerRa
     return emptyRatingsData({
       primaryTeam,
       userId: user?.id ?? null,
-      message: "평점을 남길 지난 경기가 아직 없습니다.",
+      message: "평점을 남길 수 있는 종료 경기가 아직 없습니다.",
     });
   }
 
@@ -246,22 +286,26 @@ export async function getCommunityPlayerRatingsData(): Promise<CommunityPlayerRa
   const likes = (likeRows ?? []) as MatchPlayerRatingLike[];
   const momVotes = (momRows ?? []) as MatchMomVote[];
 
-  const userIds = Array.from(
-    new Set(ratings.map((row) => row.user_id).filter(Boolean)),
-  );
+  const userIds = Array.from(new Set(ratings.map((row) => row.user_id).filter(Boolean)));
   const { data: usersData } =
     userIds.length > 0
       ? await admin.from("users").select("id, nickname").in("id", userIds)
       : { data: [] };
 
   const nicknameMap = new Map(
-    ((usersData ?? []) as Array<{ id: string; nickname: string }>).map((row) => [row.id, row.nickname]),
+    ((usersData ?? []) as Array<{ id: string; nickname: string }>).map((row) => [
+      row.id,
+      row.nickname,
+    ]),
   );
 
   const likeCountByRatingId = new Map<string, number>();
   const likedRatingIds = new Set<string>();
   for (const like of likes) {
-    likeCountByRatingId.set(like.rating_id, (likeCountByRatingId.get(like.rating_id) ?? 0) + 1);
+    likeCountByRatingId.set(
+      like.rating_id,
+      (likeCountByRatingId.get(like.rating_id) ?? 0) + 1,
+    );
     if (user?.id && like.user_id === user.id) {
       likedRatingIds.add(like.rating_id);
     }
@@ -293,57 +337,45 @@ export async function getCommunityPlayerRatingsData(): Promise<CommunityPlayerRa
 
   const playerRows = lineupPlayerIds
     .map((playerId): CommunityPlayerRatingRow | null => {
-        const roster = rosterMap.get(playerId);
-        if (!roster) return null;
+      const roster = rosterMap.get(playerId);
+      if (!roster) return null;
 
-        const playerRatings = ratingsByPlayer.get(playerId) ?? [];
-        const voteCount = playerRatings.length;
-        const averageRating = voteCount
-          ? Number(
-              (
-                playerRatings.reduce((sum, row) => sum + row.rating, 0) / voteCount
-              ).toFixed(2),
-            )
-          : null;
+      const playerRatings = ratingsByPlayer.get(playerId) ?? [];
+      const voteCount = playerRatings.length;
+      const averageRating = voteCount
+        ? Number(
+            (
+              playerRatings.reduce((sum, row) => sum + row.rating, 0) / voteCount
+            ).toFixed(2),
+          )
+        : null;
 
-        const comments = playerRatings
-          .filter((row) => Boolean(row.comment?.trim()))
-          .map((row) => ({
-            ratingId: row.id,
-            playerId,
-            userId: row.user_id,
-            nickname: nicknameMap.get(row.user_id) ?? "팬",
-            rating: row.rating,
-            comment: row.comment?.trim() ?? "",
-            likeCount: likeCountByRatingId.get(row.id) ?? 0,
-            likedByMe: likedRatingIds.has(row.id),
-            isMine: user?.id === row.user_id,
-            createdAt: row.created_at,
-          }))
-          .sort(
-            (left, right) =>
-              right.likeCount - left.likeCount ||
-              parseKstDate(right.createdAt).getTime() - parseKstDate(left.createdAt).getTime(),
-          );
+      const comments = buildComments(
+        playerId,
+        playerRatings,
+        likeCountByRatingId,
+        likedRatingIds,
+        nicknameMap,
+        user?.id ?? null,
+      );
+      const myRating = userRatingsByPlayer.get(playerId);
 
-        const myRating = userRatingsByPlayer.get(playerId);
-
-        return {
-          playerId,
-          name: roster.name,
-          position: roster.position,
-          squadNumber: roster.squadNumber,
-          isCaptain: roster.isCaptain,
-          averageRating,
-          voteCount,
-          momVoteCount: momCounts.get(playerId) ?? 0,
-          userRating: myRating?.rating ?? null,
-          userComment: myRating?.comment ?? "",
-          comments,
-          topComment: comments[0] ?? null,
-        } satisfies CommunityPlayerRatingRow;
-      })
-      .filter((row): row is CommunityPlayerRatingRow => row !== null);
+      return {
+        playerId,
+        name: roster.name,
+        position: roster.position,
+        squadNumber: roster.squadNumber,
+        isCaptain: roster.isCaptain,
+        averageRating,
+        voteCount,
+        momVoteCount: momCounts.get(playerId) ?? 0,
+        userRating: myRating?.rating ?? null,
+        userComment: myRating?.comment ?? "",
+        comments,
+        topComment: comments[0] ?? null,
+      } satisfies CommunityPlayerRatingRow;
+    })
+    .filter((row): row is CommunityPlayerRatingRow => row !== null);
 
   const players = sortPlayers(playerRows);
 

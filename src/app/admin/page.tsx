@@ -1,5 +1,6 @@
-﻿import { AdminDashboardSchedule } from "@/components/admin/admin-dashboard-schedule";
+import { AdminDashboardSchedule } from "@/components/admin/admin-dashboard-schedule";
 import {
+  getAdminDashboardFanRatingContext,
   getAdminDashboardLineupContext,
   getAdminMatches,
   getAdminSeasons,
@@ -12,11 +13,12 @@ export const metadata = {
 };
 
 export default async function AdminDashboardPage() {
-  const [matches, seasons, teams, lineupContext] = await Promise.all([
+  const [matches, seasons, teams, lineupContext, fanRatingContext] = await Promise.all([
     getAdminMatches(),
     getAdminSeasons(),
     getAdminTeams(),
     getAdminDashboardLineupContext(),
+    getAdminDashboardFanRatingContext(),
   ]);
 
   return (
@@ -27,6 +29,7 @@ export default async function AdminDashboardPage() {
       primaryTeamId={lineupContext.primaryTeamId}
       roster={lineupContext.roster}
       lineups={lineupContext.lineups}
+      fanRatingContext={fanRatingContext}
     />
   );
 }

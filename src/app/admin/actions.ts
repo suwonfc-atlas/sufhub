@@ -3,6 +3,14 @@
 import { revalidatePath } from "next/cache";
 
 import { isAdminUser } from "@/lib/auth/admin";
+import {
+  generateMonthlyFanAwardSnapshot,
+  generateSeasonFanAwardSnapshot,
+} from "@/lib/data/fan-awards";
+import {
+  settlePendingPrimaryFanRatings,
+  settleSingleMatchFanRatings,
+} from "@/lib/data/fan-rating-settlement";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { formatKstDateTimeString } from "@/lib/utils";
 import type {
@@ -303,6 +311,15 @@ export interface InquiryStatusMutationInput {
 export interface InquiryAnswerMutationInput {
   id: string;
   answer_content: string;
+}
+
+export interface FanAwardMonthlySnapshotInput {
+  season_id: string;
+  award_month: string;
+}
+
+export interface FanAwardSeasonSnapshotInput {
+  season_id: string;
 }
 
 function success(message: string, entityId?: string): AdminMutationResult {
@@ -1366,7 +1383,23 @@ export async function saveMatch(input: MatchMutationInput): Promise<AdminMutatio
 
     if (error) return failure(error.message);
 
-    revalidatePaths(["/", "/admin", "/admin/seasons", "/admin/matches", "/matches", "/matches/schedule", "/matches/standings"]);
+    if (payload.status === "finished") {
+      await settlePendingPrimaryFanRatings(admin.supabase);
+    }
+
+    revalidatePaths([
+      "/",
+      "/admin",
+      "/admin/seasons",
+      "/admin/matches",
+      "/matches",
+      "/matches/schedule",
+      "/matches/standings",
+      "/community",
+      "/history/players",
+      "/mypage",
+      "/mypage/ratings",
+    ]);
     return success(input.id ? "경기 정보를 수정했습니다." : "경기를 추가했습니다.");
   } catch (error) {
     return failure(error instanceof Error ? error.message : "경기 저장 중 오류가 발생했습니다.");
@@ -1382,6 +1415,32 @@ export async function deleteMatch(id: string): Promise<AdminMutationResult> {
 
   revalidatePaths(["/", "/admin", "/admin/seasons", "/admin/matches", "/matches", "/matches/schedule", "/matches/standings"]);
   return success("경기를 삭제했습니다.");
+}
+
+export async function settlePendingFanRatings(): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const result = await settlePendingPrimaryFanRatings(admin.supabase);
+
+    revalidatePaths([
+      "/",
+      "/admin",
+      "/community",
+      "/history/players",
+      "/mypage",
+      "/mypage/ratings",
+    ]);
+
+    if (!result.settledMatchIds.length) {
+      return success("지금 정산할 팬 평점 경기가 없습니다.");
+    }
+
+    return success(`팬 평점 ${result.settledMatchIds.length}경기를 정산했습니다.`);
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : "팬 평점 정산 중 오류가 발생했습니다.");
+  }
 }
 
 export async function saveMatchLineup(
@@ -2410,5 +2469,179 @@ export async function saveInquiryAnswer(
     return success("답변을 저장했습니다.");
   } catch (error) {
     return failure(error instanceof Error ? error.message : "답변 저장 중 오류가 발생했습니다.");
+  }
+}
+
+export async function createMonthlyFanAwardSnapshot(
+  input: FanAwardMonthlySnapshotInput,
+): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const seasonId = normalizeString(input.season_id);
+    const awardMonth = normalizeString(input.award_month);
+    if (!/^\d{4}-\d{2}$/.test(awardMonth)) {
+      return failure("월 형식은 YYYY-MM 이어야 합니다.");
+    }
+
+    const count = await generateMonthlyFanAwardSnapshot(admin.supabase, {
+      seasonId,
+      awardMonth,
+      confirmedBy: admin.userId || null,
+    });
+
+    revalidatePaths([
+      "/history",
+      "/history/fan-awards",
+      "/history/fan-ratings",
+      "/admin/fan-awards",
+    ]);
+    return success(`월간 어워드 스냅샷을 ${count}건 저장했습니다.`);
+  } catch (error) {
+    return failure(
+      error instanceof Error
+        ? error.message
+        : "월간 어워드 스냅샷 생성 중 오류가 발생했습니다.",
+    );
+  }
+}
+
+export async function createSeasonFanAwardSnapshot(
+  input: FanAwardSeasonSnapshotInput,
+): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const seasonId = normalizeString(input.season_id);
+    const count = await generateSeasonFanAwardSnapshot(admin.supabase, {
+      seasonId,
+      confirmedBy: admin.userId || null,
+    });
+
+    revalidatePaths([
+      "/history",
+      "/history/fan-awards",
+      "/history/fan-ratings",
+      "/admin/fan-awards",
+    ]);
+    return success(`시즌 어워드 스냅샷을 ${count}건 저장했습니다.`);
+  } catch (error) {
+    return failure(
+      error instanceof Error
+        ? error.message
+        : "시즌 어워드 스냅샷 생성 중 오류가 발생했습니다.",
+    );
+  }
+}
+
+export async function toggleFanRatingCommentVisibility(
+  ratingId: string,
+): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const { data: rating, error: ratingError } = await admin.supabase
+      .from("match_player_ratings")
+      .select("id, match_id, comment, is_hidden, is_featured")
+      .eq("id", ratingId)
+      .maybeSingle();
+
+    if (ratingError) return failure(ratingError.message);
+    if (!rating) return failure("대상 한줄평을 찾지 못했습니다.");
+    if (!rating.comment?.trim()) return failure("한줄평이 없는 평점입니다.");
+
+    const nextHidden = !rating.is_hidden;
+    const { error: updateError } = await admin.supabase
+      .from("match_player_ratings")
+      .update({
+        is_hidden: nextHidden,
+        is_featured: nextHidden ? false : rating.is_featured,
+        featured_at: nextHidden ? null : undefined,
+        featured_by: nextHidden ? null : undefined,
+      })
+      .eq("id", ratingId);
+
+    if (updateError) return failure(updateError.message);
+
+    await settleSingleMatchFanRatings(rating.match_id, admin.supabase);
+
+    revalidatePaths([
+      "/community",
+      "/history/fan-ratings",
+      "/history/fan-awards",
+      "/history/players",
+      "/admin/fan-awards",
+    ]);
+    return success(nextHidden ? "한줄평을 비노출 처리했습니다." : "한줄평을 다시 노출했습니다.");
+  } catch (error) {
+    return failure(
+      error instanceof Error
+        ? error.message
+        : "한줄평 노출 상태 변경 중 오류가 발생했습니다.",
+    );
+  }
+}
+
+export async function setFeaturedFanRatingComment(
+  ratingId: string,
+): Promise<AdminMutationResult> {
+  try {
+    const admin = await getAdminSupabase();
+    if (admin.kind === "error") return admin.result;
+
+    const { data: rating, error: ratingError } = await admin.supabase
+      .from("match_player_ratings")
+      .select("id, match_id, player_id, comment")
+      .eq("id", ratingId)
+      .maybeSingle();
+
+    if (ratingError) return failure(ratingError.message);
+    if (!rating) return failure("대상 한줄평을 찾지 못했습니다.");
+    if (!rating.comment?.trim()) return failure("한줄평이 없는 평점은 대표 문구로 지정할 수 없습니다.");
+
+    const now = formatKstDateTimeString(new Date());
+    const { error: resetError } = await admin.supabase
+      .from("match_player_ratings")
+      .update({
+        is_featured: false,
+        featured_at: null,
+        featured_by: null,
+      })
+      .eq("match_id", rating.match_id)
+      .eq("player_id", rating.player_id);
+
+    if (resetError) return failure(resetError.message);
+
+    const { error: updateError } = await admin.supabase
+      .from("match_player_ratings")
+      .update({
+        is_hidden: false,
+        is_featured: true,
+        featured_at: now,
+        featured_by: admin.userId || null,
+      })
+      .eq("id", ratingId);
+
+    if (updateError) return failure(updateError.message);
+
+    await settleSingleMatchFanRatings(rating.match_id, admin.supabase);
+
+    revalidatePaths([
+      "/community",
+      "/history/fan-ratings",
+      "/history/fan-awards",
+      "/history/players",
+      "/admin/fan-awards",
+    ]);
+    return success("대표 한줄평을 지정했습니다.");
+  } catch (error) {
+    return failure(
+      error instanceof Error
+        ? error.message
+        : "대표 한줄평 지정 중 오류가 발생했습니다.",
+    );
   }
 }

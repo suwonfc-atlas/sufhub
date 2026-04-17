@@ -22,7 +22,7 @@ function formatDate(value: string) {
 
 export const metadata = {
   title: "마이페이지",
-  description: "계정 정보와 경험치 내역을 한 곳에서 관리합니다.",
+  description: "계정 정보와 경험치, 활동 기록을 한곳에서 관리합니다.",
 };
 
 export default async function MyPage() {
@@ -34,7 +34,7 @@ export default async function MyPage() {
         <PageIntro
           eyebrow="My Page"
           title="마이페이지"
-          description="로그인 후 계정 정보와 경험치 내역을 확인할 수 있습니다."
+          description="로그인 후 계정 정보와 경험치 이력을 확인할 수 있습니다."
         />
         <SurfaceCard className="p-6 text-sm text-slate-600">로그인이 필요합니다.</SurfaceCard>
       </div>
@@ -51,7 +51,7 @@ export default async function MyPage() {
       <PageIntro
         eyebrow="My Page"
         title="마이페이지"
-        description="대시보드와 경험치 이력을 확인하고 계정을 관리하세요."
+        description="대시보드와 경험치 이력, 계정 관리 메뉴를 한 번에 확인하세요."
         actions={<MyPageActions />}
       />
 
@@ -119,12 +119,12 @@ export default async function MyPage() {
                 </div>
               ))
             ) : (
-              <p className="text-sm text-slate-500">표시할 이력이 없습니다.</p>
+              <p className="text-sm text-slate-500">표시할 경험치 이력이 없습니다.</p>
             )}
           </div>
           {!hasServiceAccess ? (
             <p className="text-xs text-slate-500">
-              경험치 이력은 서버 설정이 완료된 이후 표시됩니다.
+              경험치 이력은 서비스 설정이 완료된 뒤에 표시됩니다.
             </p>
           ) : null}
         </SurfaceCard>
@@ -137,34 +137,41 @@ export default async function MyPage() {
               className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
             >
               예측 기록
-              <span className="text-slate-400">›</span>
+              <span className="text-slate-400">→</span>
+            </Link>
+            <Link
+              href="/mypage/ratings"
+              className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
+              평점 입력 기록
+              <span className="text-slate-400">→</span>
             </Link>
           </div>
         </SurfaceCard>
 
         <SurfaceCard className="space-y-2">
-          <p className="text-sm font-semibold text-slate-700">바로 가기</p>
+          <p className="text-sm font-semibold text-slate-700">바로가기</p>
           <div className="grid gap-2">
             <Link
               href="/mypage/profile"
               className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
             >
               회원 정보 수정
-              <span className="text-slate-400">›</span>
+              <span className="text-slate-400">→</span>
             </Link>
             <Link
               href="/notices"
               className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
             >
               공지사항
-              <span className="text-slate-400">›</span>
+              <span className="text-slate-400">→</span>
             </Link>
             <Link
               href="/contact"
               className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
             >
               문의
-              <span className="text-slate-400">›</span>
+              <span className="text-slate-400">→</span>
             </Link>
           </div>
         </SurfaceCard>

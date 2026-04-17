@@ -21,14 +21,16 @@ const LEGACY_METRICS: LegacyHomePlayerLeaderMetric[] = [
 ];
 
 interface FanAggregate {
-  sum: number;
+  average: number | null;
   count: number;
   momCount: number;
+  topComment: string | null;
+  topCommentLikes: number;
 }
 
 function formatDisplayValue(metric: HomePlayerLeaderMetric, aggregate: FanAggregate) {
   if (metric === "fan-rating") {
-    return (aggregate.sum / aggregate.count).toFixed(2);
+    return aggregate.average !== null ? aggregate.average.toFixed(2) : "-";
   }
 
   return `${aggregate.momCount.toLocaleString("ko-KR")}`;
@@ -58,20 +60,12 @@ export async function getResolvedHomePlayerLeadersData(
     return [];
   }
 
-  const [{ data: rosterData }, { data: matchData }] = await Promise.all([
-    supabase
-      .from("player_seasons")
-      .select("player_id, squad_number, is_captain, player:players(*)")
-      .eq("season_id", season.id)
-      .eq("team_id", primaryTeam.id)
-      .eq("is_active", true),
-    supabase
-      .from("league_matches")
-      .select("id")
-      .eq("season_id", season.id)
-      .eq("status", "finished")
-      .or(`home_team_id.eq.${primaryTeam.id},away_team_id.eq.${primaryTeam.id}`),
-  ]);
+  const { data: rosterData } = await supabase
+    .from("player_seasons")
+    .select("player_id, squad_number, is_captain, player:players(*)")
+    .eq("season_id", season.id)
+    .eq("team_id", primaryTeam.id)
+    .eq("is_active", true);
 
   const rosterRows = (rosterData ?? []) as Array<{
     player_id: string;
@@ -80,29 +74,15 @@ export async function getResolvedHomePlayerLeadersData(
     player?: Player | Player[] | null;
   }>;
   const playerIds = rosterRows.map((row) => row.player_id).filter(Boolean);
-  const matchIds = ((matchData ?? []) as Array<{ id: string }>).map((row) => row.id);
-
-  if (!playerIds.length || !matchIds.length) {
+  if (!playerIds.length) {
     return [];
   }
 
-  const [{ data: statsData }, { data: ratingData }, { data: momData }] = await Promise.all([
-    supabase
-      .from("player_stats")
-      .select("*, player:players(*)")
-      .eq("season", seasonCode)
-      .in("player_id", playerIds),
-    supabase
-      .from("match_player_ratings")
-      .select("player_id, rating")
-      .in("match_id", matchIds)
-      .in("player_id", playerIds),
-    supabase
-      .from("match_mom_votes")
-      .select("player_id")
-      .in("match_id", matchIds)
-      .in("player_id", playerIds),
-  ]);
+  const { data: statsData } = await supabase
+    .from("player_stats")
+    .select("*, player:players(*)")
+    .eq("season", seasonCode)
+    .in("player_id", playerIds);
 
   const statsMap = new Map(
     ((statsData ?? []) as PlayerStat[]).map((row) => [row.player_id, row]),
@@ -121,20 +101,14 @@ export async function getResolvedHomePlayerLeadersData(
 
   const aggregates = new Map<string, FanAggregate>();
   for (const playerId of playerIds) {
-    aggregates.set(playerId, { sum: 0, count: 0, momCount: 0 });
-  }
-
-  for (const row of (ratingData ?? []) as Array<{ player_id: string; rating: number }>) {
-    const aggregate = aggregates.get(row.player_id);
-    if (!aggregate) continue;
-    aggregate.sum += row.rating;
-    aggregate.count += 1;
-  }
-
-  for (const row of (momData ?? []) as Array<{ player_id: string }>) {
-    const aggregate = aggregates.get(row.player_id);
-    if (!aggregate) continue;
-    aggregate.momCount += 1;
+    const stat = statsMap.get(playerId);
+    aggregates.set(playerId, {
+      average: stat?.fan_rating_average ?? null,
+      count: stat?.fan_rating_matches ?? 0,
+      momCount: stat?.fan_mom_count ?? 0,
+      topComment: stat?.fan_top_comment ?? null,
+      topCommentLikes: stat?.fan_top_comment_likes ?? 0,
+    });
   }
 
   const rows = playerIds
@@ -145,11 +119,11 @@ export async function getResolvedHomePlayerLeadersData(
       const player = roster?.player ?? stat?.player ?? null;
       if (!aggregate || !roster || !player) return null;
 
-      if (metric === "fan-rating" && aggregate.count === 0) {
+      if (metric === "fan-rating" && (aggregate.average === null || aggregate.count <= 0)) {
         return null;
       }
 
-      if (metric === "fan-mom" && aggregate.momCount === 0) {
+      if (metric === "fan-mom" && aggregate.momCount <= 0) {
         return null;
       }
 
@@ -173,6 +147,11 @@ export async function getResolvedHomePlayerLeadersData(
         minutesPlayed: stat?.minutes_played ?? 0,
         yellowCards: stat?.yellow_cards ?? 0,
         redCards: stat?.red_cards ?? 0,
+        fanRatingAverage: aggregate.average,
+        fanRatingMatches: aggregate.count,
+        fanMomCount: aggregate.momCount,
+        fanTopComment: aggregate.topComment,
+        fanTopCommentLikes: aggregate.topCommentLikes,
         displayValue: formatDisplayValue(metric, aggregate),
       } satisfies HomePlayerLeaderRow;
     })
@@ -182,14 +161,16 @@ export async function getResolvedHomePlayerLeadersData(
     .sort((left, right) => {
       if (metric === "fan-rating") {
         return (
-          Number.parseFloat(right.displayValue) - Number.parseFloat(left.displayValue) ||
+          (right.fanRatingAverage ?? 0) - (left.fanRatingAverage ?? 0) ||
+          (right.fanRatingMatches ?? 0) - (left.fanRatingMatches ?? 0) ||
           right.appearances - left.appearances ||
           left.name.localeCompare(right.name, "ko")
         );
       }
 
       return (
-        Number.parseInt(right.displayValue, 10) - Number.parseInt(left.displayValue, 10) ||
+        (right.fanMomCount ?? 0) - (left.fanMomCount ?? 0) ||
+        (right.fanRatingAverage ?? 0) - (left.fanRatingAverage ?? 0) ||
         right.appearances - left.appearances ||
         left.name.localeCompare(right.name, "ko")
       );

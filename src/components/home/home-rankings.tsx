@@ -441,6 +441,11 @@ export function HomeRankings({
                 minutesPlayed: selectedPlayer.minutesPlayed,
                 yellowCards: selectedPlayer.yellowCards,
                 redCards: selectedPlayer.redCards,
+                fanRatingAverage: selectedPlayer.fanRatingAverage,
+                fanRatingMatches: selectedPlayer.fanRatingMatches,
+                fanMomCount: selectedPlayer.fanMomCount,
+                fanTopComment: selectedPlayer.fanTopComment,
+                fanTopCommentLikes: selectedPlayer.fanTopCommentLikes,
               }
             : null
         }

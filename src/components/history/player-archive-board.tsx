@@ -81,7 +81,7 @@ export function PlayerArchiveBoard({ players }: { players: PlayerArchiveItem[] }
   );
 
   return (
-    <div className="space-y-4">
+    <div className="w-full max-w-full space-y-4 overflow-x-hidden">
       <div className="flex flex-wrap gap-2">
         {seasons.map((season) => (
           <button
@@ -118,7 +118,7 @@ export function PlayerArchiveBoard({ players }: { players: PlayerArchiveItem[] }
         )}
       </div>
 
-      <div className="grid gap-2">
+      <div className="grid w-full gap-2">
         {sortedPlayers.map((player) => {
           const seasonInfo = player.player_seasons.find(
             (season) => season.season === selectedSeason,
@@ -127,9 +127,13 @@ export function PlayerArchiveBoard({ players }: { players: PlayerArchiveItem[] }
           const metaParts = [player.name_en, birthDate].filter(Boolean);
 
           return (
-            <Link key={player.id} href={`/history/players/${player.id}`}>
-              <SurfaceCard className="px-3 py-3 transition hover:border-sky-200">
-                <div className="flex items-center gap-3">
+            <Link
+              key={player.id}
+              href={`/history/players/${player.id}`}
+              className="block min-w-0 max-w-full"
+            >
+              <SurfaceCard className="w-full max-w-full overflow-hidden px-3 py-3 transition hover:border-sky-200">
+                <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-[20px] bg-[linear-gradient(145deg,#0d1b70,#155dfc)] text-white shadow-[0_12px_30px_rgba(8,20,76,0.16)]">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.16em]">
                       No
@@ -154,7 +158,7 @@ export function PlayerArchiveBoard({ players }: { players: PlayerArchiveItem[] }
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="rounded-full bg-[rgba(21,93,252,0.08)] px-3 py-1 text-xs font-semibold text-[color:var(--brand-blue)]">
+                    <p className="rounded-full bg-[rgba(21,93,252,0.08)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--brand-blue)] sm:px-3 sm:text-xs">
                       {player.position}
                     </p>
                   </div>

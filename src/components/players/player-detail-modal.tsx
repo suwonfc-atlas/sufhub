@@ -22,6 +22,11 @@ interface PlayerDetailModalPlayer {
   minutesPlayed?: number;
   yellowCards?: number;
   redCards?: number;
+  fanRatingAverage?: number | null;
+  fanRatingMatches?: number;
+  fanMomCount?: number;
+  fanTopComment?: string | null;
+  fanTopCommentLikes?: number;
 }
 
 interface PlayerDetailModalProps {
@@ -65,7 +70,7 @@ export function PlayerDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-[rgba(2,6,23,0.72)] px-4 py-6 md:items-center">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(2,6,23,0.72)] px-4 py-4 md:py-6">
       <button
         type="button"
         aria-label="닫기"
@@ -73,7 +78,7 @@ export function PlayerDetailModal({
         onClick={onClose}
       />
 
-      <SurfaceCard className="relative z-10 w-full max-w-[32rem] overflow-hidden px-0 py-0">
+      <SurfaceCard className="relative z-10 flex max-h-[calc(100dvh-7rem)] w-full max-w-[32rem] flex-col overflow-hidden px-0 py-0 md:max-h-[calc(100dvh-4rem)]">
         <div className="flex items-start justify-between gap-4 border-b border-[color:var(--line)] px-5 py-4">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--brand-blue)]">
@@ -103,91 +108,125 @@ export function PlayerDetailModal({
           </button>
         </div>
 
-        <div className="space-y-4 px-5 py-5">
-          <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-            <div className="grid gap-3">
-              <div className="rounded-[20px] bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  English Name
-                </p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">
-                  {player.nameEn || "정보 없음"}
-                </p>
+        <div className="flex-1 overflow-y-auto px-5 py-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
+              <div className="grid gap-3">
+                <div className="rounded-[20px] bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    English Name
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {player.nameEn || "정보 없음"}
+                  </p>
+                </div>
+
+                <div className="rounded-[20px] bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    Birth Date
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {formatBirthDate(player.birthDate)}
+                  </p>
+                </div>
+
+                <div className="rounded-[20px] bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    Nationality
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {player.nationality || "정보 없음"}
+                  </p>
+                </div>
               </div>
 
-              <div className="rounded-[20px] bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Birth Date
+              <div className="rounded-[24px] border border-[color:var(--line)] px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Stats
                 </p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">
-                  {formatBirthDate(player.birthDate)}
-                </p>
-              </div>
-
-              <div className="rounded-[20px] bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Nationality
-                </p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">
-                  {player.nationality || "정보 없음"}
-                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2.5">
+                  <div className="rounded-[18px] bg-slate-50 px-3 py-3">
+                    <p className="text-[11px] font-semibold text-slate-400">출전</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {formatStatNumber(player.appearances)}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] bg-slate-50 px-3 py-3">
+                    <p className="text-[11px] font-semibold text-slate-400">득점</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {formatStatNumber(player.goals)}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] bg-slate-50 px-3 py-3">
+                    <p className="text-[11px] font-semibold text-slate-400">도움</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {formatStatNumber(player.assists)}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] bg-slate-50 px-3 py-3">
+                    <p className="text-[11px] font-semibold text-slate-400">공격포인트</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {formatStatNumber(player.attackPoints)}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] bg-slate-50 px-3 py-3">
+                    <p className="text-[11px] font-semibold text-slate-400">평균 평점</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {player.ratingAverage !== null && player.ratingAverage !== undefined
+                        ? player.ratingAverage.toFixed(2)
+                        : "-"}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] bg-slate-50 px-3 py-3">
+                    <p className="text-[11px] font-semibold text-slate-400">출전 시간</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {formatStatNumber(player.minutesPlayed, "분")}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div className="rounded-[24px] border border-[color:var(--line)] px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Stats
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2.5">
-                <div className="rounded-[18px] bg-slate-50 px-3 py-3">
-                  <p className="text-[11px] font-semibold text-slate-400">출전</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {formatStatNumber(player.appearances)}
-                  </p>
-                </div>
-                <div className="rounded-[18px] bg-slate-50 px-3 py-3">
-                  <p className="text-[11px] font-semibold text-slate-400">득점</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {formatStatNumber(player.goals)}
-                  </p>
-                </div>
-                <div className="rounded-[18px] bg-slate-50 px-3 py-3">
-                  <p className="text-[11px] font-semibold text-slate-400">도움</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {formatStatNumber(player.assists)}
-                  </p>
-                </div>
-                <div className="rounded-[18px] bg-slate-50 px-3 py-3">
-                  <p className="text-[11px] font-semibold text-slate-400">공격포인트</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {formatStatNumber(player.attackPoints)}
-                  </p>
-                </div>
-                <div className="rounded-[18px] bg-slate-50 px-3 py-3">
-                  <p className="text-[11px] font-semibold text-slate-400">평균 평점</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {player.ratingAverage !== null && player.ratingAverage !== undefined
-                      ? player.ratingAverage.toFixed(2)
-                      : "-"}
-                  </p>
-                </div>
-                <div className="rounded-[18px] bg-slate-50 px-3 py-3">
-                  <p className="text-[11px] font-semibold text-slate-400">출전 시간</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {formatStatNumber(player.minutesPlayed, "분")}
-                  </p>
-                </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Fan Record
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <div className="rounded-[18px] bg-slate-50 px-3 py-3">
+                <p className="text-[11px] font-semibold text-slate-400">팬 평균 평점</p>
+                <p className="mt-1 text-sm font-black text-slate-950">
+                  {player.fanRatingAverage !== null && player.fanRatingAverage !== undefined
+                    ? player.fanRatingAverage.toFixed(2)
+                    : "-"}
+                </p>
+              </div>
+              <div className="rounded-[18px] bg-slate-50 px-3 py-3">
+                <p className="text-[11px] font-semibold text-slate-400">팬 평점 경기 수</p>
+                <p className="mt-1 text-sm font-black text-slate-950">
+                  {formatStatNumber(player.fanRatingMatches)}
+                </p>
+              </div>
+              <div className="rounded-[18px] bg-slate-50 px-3 py-3">
+                <p className="text-[11px] font-semibold text-slate-400">팬 MOM</p>
+                <p className="mt-1 text-sm font-black text-slate-950">
+                  {formatStatNumber(player.fanMomCount)}
+                </p>
+              </div>
+              <div className="rounded-[18px] bg-slate-50 px-3 py-3">
+                <p className="text-[11px] font-semibold text-slate-400">대표 한줄평 좋아요</p>
+                <p className="mt-1 text-sm font-black text-slate-950">
+                  {formatStatNumber(player.fanTopCommentLikes)}
+                </p>
               </div>
             </div>
-          </div>
 
-          <div className="rounded-[24px] border border-[color:var(--line)] px-4 py-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Profile
-            </p>
-            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
-              {player.bio || `${player.nameEn || player.name} 선수 정보입니다.`}
-            </p>
+            <div className="mt-3 rounded-[18px] bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-semibold text-slate-400">대표 한줄평</p>
+              <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">
+                {player.fanTopComment || "아직 대표 한줄평이 없습니다."}
+              </p>
+            </div>
+          </div>
           </div>
         </div>
       </SurfaceCard>
