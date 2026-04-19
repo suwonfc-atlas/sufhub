@@ -1,10 +1,8 @@
 import { getUserFromSession } from "@/lib/auth/user";
-import { buildClubMatches } from "@/lib/data/league";
 import { createPublicSupabaseClient } from "@/lib/supabase";
 import { createServiceSupabaseClient } from "@/lib/supabase/admin";
 import { parseKstDate } from "@/lib/utils";
 import type {
-  LeagueMatch,
   Match,
   MatchLineup,
   MatchMomVote,
@@ -14,6 +12,8 @@ import type {
   Team,
   UserAccount,
 } from "@/types";
+
+import { getCommunityBaseData } from "./community-shared";
 
 const POSITION_ORDER: Record<string, number> = {
   GK: 0,
@@ -160,15 +160,7 @@ export async function getCommunityPlayerRatingsData(): Promise<CommunityPlayerRa
     });
   }
 
-  const { data: primaryTeamData } = await supabase
-    .from("teams")
-    .select("*")
-    .eq("is_primary", true)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
-  const primaryTeam = (primaryTeamData as Team | null) ?? null;
+  const { primaryTeam, clubMatches } = await getCommunityBaseData();
   if (!primaryTeam) {
     return emptyRatingsData({
       userId: user?.id ?? null,
@@ -176,36 +168,7 @@ export async function getCommunityPlayerRatingsData(): Promise<CommunityPlayerRa
     });
   }
 
-  const { data: matchRows } = await supabase
-    .from("league_matches")
-    .select(
-      "*, season_record:seasons(*), home_team:teams!league_matches_home_team_id_fkey(*), away_team:teams!league_matches_away_team_id_fkey(*)",
-    )
-    .or(`home_team_id.eq.${primaryTeam.id},away_team_id.eq.${primaryTeam.id}`)
-    .order("match_date", { ascending: true });
-
-  const leagueMatches = ((matchRows ?? []) as Array<
-    LeagueMatch & { season_record?: { code?: string | null } | null }
-  >).map((match) => ({
-    ...match,
-    season: match.season_record?.code ?? "",
-  })) as LeagueMatch[];
-
-  const teams = Array.from(
-    new Map(
-      leagueMatches
-        .flatMap((match) => [match.home_team, match.away_team])
-        .filter((team): team is Team => Boolean(team))
-        .map((team) => [team.id, team]),
-    ).values(),
-  );
-
-  if (!teams.find((team) => team.id === primaryTeam.id)) {
-    teams.unshift(primaryTeam);
-  }
-
-  const matches = buildClubMatches(leagueMatches, teams, primaryTeam.id);
-  const targetMatch = getRatingTargetMatch(matches);
+  const targetMatch = getRatingTargetMatch(clubMatches);
 
   if (!targetMatch) {
     return emptyRatingsData({

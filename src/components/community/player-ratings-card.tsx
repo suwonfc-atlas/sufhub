@@ -143,7 +143,7 @@ export function CommunityPlayerRatingsCard({ data }: { data: CommunityPlayerRati
   if (!data.match || !data.primaryTeam) {
     return (
       <SurfaceCard className="p-4 text-sm text-slate-600">
-        {data.message ?? "평점 대상 경기가 없습니다."}
+        {data.message ?? "평점을 남길 종료 경기가 없습니다."}
       </SurfaceCard>
     );
   }
@@ -183,7 +183,9 @@ export function CommunityPlayerRatingsCard({ data }: { data: CommunityPlayerRati
               <span className="text-base font-black text-slate-950">{data.participationCount}</span>
               <span className="text-[11px] text-slate-500">명</span>
             </div>
-            <p className="mt-1 whitespace-nowrap text-[11px] text-slate-500">한줄평 {data.totalComments}개</p>
+            <p className="mt-1 whitespace-nowrap text-[11px] text-slate-500">
+              한줄평 {data.totalComments}개
+            </p>
           </div>
         </div>
 
@@ -285,6 +287,7 @@ export function CommunityPlayerRatingsCard({ data }: { data: CommunityPlayerRati
         }}
         title="우리끼리 평점 입력"
         className="max-w-4xl"
+        bodyClassName="overflow-y-auto overflow-x-visible"
       >
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
@@ -301,7 +304,7 @@ export function CommunityPlayerRatingsCard({ data }: { data: CommunityPlayerRati
 
           {!data.userId ? (
             <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">
-              로그인 후 평점과 MOM 투표에 참여할 수 있습니다.
+              로그인 후에 평점과 MOM 투표에 참여할 수 있습니다.
             </div>
           ) : null}
 
@@ -495,7 +498,7 @@ export function CommunityPlayerRatingsCard({ data }: { data: CommunityPlayerRati
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700">
                         <MessageSquare className="h-3.5 w-3.5" />
-                        {player.voteCount}명
+                        {player.comments.length}개
                       </span>
                     </div>
                   </div>

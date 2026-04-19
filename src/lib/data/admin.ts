@@ -273,7 +273,34 @@ export async function getAdminMatches() {
   return leagueMatches
 }
 
-export async function getAdminDashboardLineupContext(): Promise<AdminDashboardLineupContext> {
+export async function getAdminDashboardMatches(seasonId?: string) {
+  const supabase = await createServerSupabaseClient()
+  if (!supabase) return [] as LeagueMatch[]
+
+  let query = supabase
+    .from("league_matches")
+    .select(
+      "*, season_record:seasons(*), home_team:teams!league_matches_home_team_id_fkey(*), away_team:teams!league_matches_away_team_id_fkey(*)",
+    )
+    .order("match_date", { ascending: true })
+
+  if (seasonId) {
+    query = query.eq("season_id", seasonId)
+  }
+
+  const { data, error } = await query
+
+  if (error) return [] as LeagueMatch[]
+
+  return ((data ?? []) as Array<LeagueMatch & { season_record?: Season | null }>).map((match) => ({
+    ...match,
+    season: match.season_record?.code ?? "",
+  })) as LeagueMatch[]
+}
+
+export async function getAdminDashboardLineupContext(
+  seasonId?: string,
+): Promise<AdminDashboardLineupContext> {
   const supabase = await createServerSupabaseClient()
   if (!supabase) {
     return {
@@ -300,25 +327,52 @@ export async function getAdminDashboardLineupContext(): Promise<AdminDashboardLi
     }
   }
 
-  const [{ data: rosterData }, { data: lineupsData }] = await Promise.all([
-    supabase
-      .from("player_seasons")
-      .select("*, player:players(*), season_record:seasons(*), team:teams(*)")
-      .eq("team_id", primaryTeamId)
-      .order("season", { ascending: false })
-      .order("squad_number", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("match_lineups")
-      .select("*")
-      .eq("team_id", primaryTeamId)
-      .order("created_at", { ascending: false }),
+  let rosterQuery = supabase
+    .from("player_seasons")
+    .select("*, player:players(*), season_record:seasons(*), team:teams(*)")
+    .eq("team_id", primaryTeamId)
+    .order("season", { ascending: false })
+    .order("squad_number", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true })
+
+  if (seasonId) {
+    rosterQuery = rosterQuery.eq("season_id", seasonId)
+  }
+
+  const [rosterResponse, seasonMatchIdsResponse] = await Promise.all([
+    rosterQuery,
+    seasonId
+      ? supabase
+          .from("league_matches")
+          .select("id")
+          .eq("season_id", seasonId)
+          .or(`home_team_id.eq.${primaryTeamId},away_team_id.eq.${primaryTeamId}`)
+      : Promise.resolve({ data: null }),
   ])
+
+  const seasonMatchIds = ((seasonMatchIdsResponse.data ?? []) as Array<{ id?: string | null }>)
+    .map((row) => row.id ?? "")
+    .filter(Boolean)
+
+  const lineupsResponse = seasonId
+    ? seasonMatchIds.length
+      ? await supabase
+          .from("match_lineups")
+          .select("*")
+          .eq("team_id", primaryTeamId)
+          .in("match_id", seasonMatchIds)
+          .order("created_at", { ascending: false })
+      : { data: [] }
+    : await supabase
+        .from("match_lineups")
+        .select("*")
+        .eq("team_id", primaryTeamId)
+        .order("created_at", { ascending: false })
 
   return {
     primaryTeamId,
-    roster: (rosterData ?? []) as PlayerSeason[],
-    lineups: (lineupsData ?? []) as MatchLineup[],
+    roster: (rosterResponse.data ?? []) as PlayerSeason[],
+    lineups: (lineupsResponse.data ?? []) as MatchLineup[],
   }
 }
 

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
+import { cache } from "react";
 
 import { createPublicSupabaseClient } from "@/lib/supabase";
 import { createServiceSupabaseClient } from "@/lib/supabase/admin";
@@ -86,7 +87,7 @@ export async function clearUserSession() {
   });
 }
 
-export async function getUserFromSession(): Promise<UserAccount | null> {
+export const getUserFromSession = cache(async (): Promise<UserAccount | null> => {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value ?? null;
   if (!token) return null;
@@ -136,4 +137,4 @@ export async function getUserFromSession(): Promise<UserAccount | null> {
   }
 
   return user;
-}
+});

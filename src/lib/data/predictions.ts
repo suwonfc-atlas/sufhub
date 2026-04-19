@@ -2,7 +2,6 @@ import { getUserFromSession } from "@/lib/auth/user";
 import { createPublicSupabaseClient } from "@/lib/supabase";
 import { createServiceSupabaseClient } from "@/lib/supabase/admin";
 import type {
-  LeagueMatch,
   Match,
   MatchPrediction,
   PredictionChoice,
@@ -10,7 +9,7 @@ import type {
   UserAccount,
 } from "@/types";
 
-import { buildClubMatches } from "./league";
+import { getCommunityBaseData } from "./community-shared";
 import { applyExperienceReward } from "./experience";
 import { parseKstDate } from "@/lib/utils";
 
@@ -126,16 +125,7 @@ export async function getCommunityPredictionData(): Promise<CommunityPredictionD
   }
 
   const user = (await getUserFromSession()) as UserAccount | null;
-
-  const { data: primaryTeamData } = await supabase
-    .from("teams")
-    .select("*")
-    .eq("is_primary", true)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
-  const primaryTeam = (primaryTeamData as Team | null) ?? null;
+  const { primaryTeam, clubMatches } = await getCommunityBaseData();
 
   if (!primaryTeam) {
     return {
@@ -152,35 +142,6 @@ export async function getCommunityPredictionData(): Promise<CommunityPredictionD
     };
   }
 
-  const { data: matchRows } = await supabase
-    .from("league_matches")
-    .select(
-      "*, season_record:seasons(*), home_team:teams!league_matches_home_team_id_fkey(*), away_team:teams!league_matches_away_team_id_fkey(*)",
-    )
-    .or(`home_team_id.eq.${primaryTeam.id},away_team_id.eq.${primaryTeam.id}`)
-    .order("match_date", { ascending: true });
-
-  const leagueMatches = ((matchRows ?? []) as Array<
-    LeagueMatch & { season_record?: { code?: string | null } | null }
-  >).map((match) => ({
-    ...match,
-    season: match.season_record?.code ?? "",
-  })) as LeagueMatch[];
-
-  const teams = Array.from(
-    new Map(
-      leagueMatches
-        .flatMap((match) => [match.home_team, match.away_team])
-        .filter((team): team is Team => Boolean(team))
-        .map((team) => [team.id, team]),
-    ).values(),
-  );
-
-  if (!teams.find((team) => team.id === primaryTeam.id)) {
-    teams.unshift(primaryTeam);
-  }
-
-  const clubMatches = buildClubMatches(leagueMatches, teams, primaryTeam.id);
   const nextMatch =
     clubMatches.find(
       (match) =>

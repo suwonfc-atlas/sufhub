@@ -502,7 +502,7 @@ async function getAdminSupabase(): Promise<AdminSupabaseContext> {
 }
 
 function revalidatePaths(paths: string[]) {
-  for (const path of paths) {
+  for (const path of new Set(paths.filter(Boolean))) {
     revalidatePath(path);
   }
 }
@@ -1377,27 +1377,39 @@ export async function saveMatch(input: MatchMutationInput): Promise<AdminMutatio
       )
     }
 
-    const { error } = input.id
-      ? await admin.supabase.from("league_matches").update(payload).eq("id", input.id)
-      : await admin.supabase.from("league_matches").insert(payload);
+    const { data: savedMatch, error } = input.id
+      ? await admin.supabase
+          .from("league_matches")
+          .update(payload)
+          .eq("id", input.id)
+          .select("id")
+          .single()
+      : await admin.supabase
+          .from("league_matches")
+          .insert(payload)
+          .select("id")
+          .single();
 
     if (error) return failure(error.message);
 
-    if (payload.status === "finished") {
-      await settlePendingPrimaryFanRatings(admin.supabase);
+    const savedMatchId = input.id ?? savedMatch?.id ?? null;
+
+    if (payload.status === "finished" && savedMatchId) {
+      try {
+        await settleSingleMatchFanRatings(savedMatchId, admin.supabase);
+      } catch (settlementError) {
+        console.error("saveMatch settlement failed", settlementError);
+      }
     }
 
     revalidatePaths([
       "/",
       "/admin",
-      "/admin/seasons",
       "/admin/matches",
-      "/matches",
       "/matches/schedule",
       "/matches/standings",
       "/community",
       "/history/players",
-      "/mypage",
       "/mypage/ratings",
     ]);
     return success(input.id ? "경기 정보를 수정했습니다." : "경기를 추가했습니다.");

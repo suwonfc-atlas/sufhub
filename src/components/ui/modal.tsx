@@ -12,12 +12,14 @@ export function Modal({
   title,
   children,
   className,
+  bodyClassName,
 }: {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
   children: ReactNode;
   className?: string;
+  bodyClassName?: string;
 }) {
   const [mounted, setMounted] = useState(false);
 
@@ -50,7 +52,7 @@ export function Modal({
       />
       <div
         className={cn(
-          "relative flex w-full max-w-3xl max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[28px] border border-white/30 bg-white shadow-[0_20px_70px_rgba(10,18,48,0.35)]",
+          "relative flex w-full max-w-3xl max-h-[calc(100vh-3rem)] flex-col overflow-visible rounded-[28px] border border-white/30 bg-white shadow-[0_20px_70px_rgba(10,18,48,0.35)]",
           className,
         )}
       >
@@ -64,7 +66,7 @@ export function Modal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div className={cn("flex-1 overflow-y-auto px-6 py-5", bodyClassName)}>{children}</div>
       </div>
     </div>
     ,

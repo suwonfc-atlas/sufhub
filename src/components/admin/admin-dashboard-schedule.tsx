@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   saveMatch,
@@ -52,10 +52,6 @@ function sortMatchesByDate(matches: LeagueMatch[]) {
   return [...matches].sort(
     (left, right) => parseKstDate(left.match_date).getTime() - parseKstDate(right.match_date).getTime(),
   );
-}
-
-function getSeasonMatches(matches: LeagueMatch[], seasonId: string) {
-  return sortMatchesByDate(matches.filter((match) => match.season_id === seasonId));
 }
 
 function getMonthTabs(matches: LeagueMatch[]) {
@@ -131,6 +127,7 @@ export function AdminDashboardSchedule({
   matches,
   teams,
   seasons,
+  activeSeasonId,
   primaryTeamId,
   roster,
   lineups,
@@ -139,16 +136,21 @@ export function AdminDashboardSchedule({
   matches: LeagueMatch[];
   teams: Team[];
   seasons: Season[];
+  activeSeasonId: string;
   primaryTeamId: string | null;
   roster: PlayerSeason[];
   lineups: MatchLineup[];
   fanRatingContext: AdminDashboardFanRatingContext;
 }) {
   const router = useRouter();
-  const defaultSeasonId = seasons.find((season) => season.is_current)?.id ?? seasons[0]?.id ?? "";
-  const initialSeasonMatches = getSeasonMatches(matches, defaultSeasonId);
+  const searchParams = useSearchParams();
+  const defaultSeasonId = activeSeasonId;
+  const initialSeasonMatches = sortMatchesByDate(matches);
   const initialMonthTabs = getMonthTabs(initialSeasonMatches);
-  const initialMonthKey = initialMonthTabs[0]?.key ?? "";
+  const monthQueryKey = searchParams.get("month") ?? "";
+  const initialMonthKey = initialMonthTabs.some((tab) => tab.key === monthQueryKey)
+    ? monthQueryKey
+    : initialMonthTabs[0]?.key ?? "";
   const initialVisibleMatches = getVisibleMatches(initialSeasonMatches, initialMonthKey).filter(
     shouldShowInDashboard,
   );
@@ -177,10 +179,7 @@ export function AdminDashboardSchedule({
     [seasons],
   );
 
-  const seasonMatches = useMemo(
-    () => getSeasonMatches(matches, selectedSeasonId),
-    [matches, selectedSeasonId],
-  );
+  const seasonMatches = useMemo(() => sortMatchesByDate(matches), [matches]);
 
   const monthTabs = useMemo(() => getMonthTabs(seasonMatches), [seasonMatches]);
   const activeMonthKey = monthTabs.some((tab) => tab.key === selectedMonthKey)
@@ -230,6 +229,30 @@ export function AdminDashboardSchedule({
     () => new Set(lineupForm?.rating_excluded_player_ids ?? []),
     [lineupForm],
   );
+
+  useEffect(() => {
+    const nextSeasonMatches = sortMatchesByDate(matches);
+    const nextMonthTabs = getMonthTabs(nextSeasonMatches);
+    const nextMonthKey = nextMonthTabs.some((tab) => tab.key === selectedMonthKey)
+      ? selectedMonthKey
+      : nextMonthTabs.some((tab) => tab.key === monthQueryKey)
+        ? monthQueryKey
+        : nextMonthTabs[0]?.key ?? "";
+    const nextVisibleMatches = getVisibleMatches(nextSeasonMatches, nextMonthKey).filter(
+      shouldShowInDashboard,
+    );
+    const nextMatch =
+      nextVisibleMatches.find((match) => match.id === selectedMatchId) ?? nextVisibleMatches[0] ?? null;
+
+    setSelectedSeasonId(activeSeasonId);
+    setSelectedMonthKey(nextMonthKey);
+    setSelectedMatchId(nextMatch?.id ?? null);
+    setForm(nextMatch ? createMatchForm(nextMatch) : null);
+    setLineupForm(createLineupForm(nextMatch, primaryTeamId, lineups));
+    setResult(null);
+    setLineupResult(null);
+    setLineupHint(null);
+  }, [activeSeasonId, lineups, matches, monthQueryKey, primaryTeamId, selectedMatchId, selectedMonthKey]);
 
   useEffect(() => {
     if (!lineupForm) return;
@@ -286,23 +309,12 @@ export function AdminDashboardSchedule({
   };
 
   const handleSeasonChange = (seasonId: string) => {
-    const nextSeasonMatches = getSeasonMatches(matches, seasonId);
-    const nextMonthTabs = getMonthTabs(nextSeasonMatches);
-    const nextMonthKey = nextMonthTabs[0]?.key ?? "";
-    const nextVisibleMatches = getVisibleMatches(nextSeasonMatches, nextMonthKey).filter(
-      shouldShowInDashboard,
-    );
-    const nextMatch = nextVisibleMatches[0] ?? null;
-
     setSelectedSeasonId(seasonId);
-    setSelectedMonthKey(nextMonthKey);
-    setSelectedMatchId(nextMatch?.id ?? null);
-    setForm(nextMatch ? createMatchForm(nextMatch) : null);
-    setLineupForm(createLineupForm(nextMatch, primaryTeamId, lineups));
-    setResult(null);
-    setLineupResult(null);
-    setLineupHint(null);
     setMobileEditorOpen(false);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("season", seasonId);
+    router.replace(`/admin?${nextParams.toString()}`, { scroll: false });
   };
 
   const handleMonthChange = (monthKey: string) => {
@@ -319,6 +331,10 @@ export function AdminDashboardSchedule({
     setLineupResult(null);
     setLineupHint(null);
     setMobileEditorOpen(false);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("month", monthKey);
+    router.replace(`/admin?${nextParams.toString()}`, { scroll: false });
   };
 
   const assignLineupPlayer = (playerId: string, target: "starter" | "bench" | "remove") => {

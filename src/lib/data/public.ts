@@ -1,4 +1,5 @@
 ﻿import { createPublicSupabaseClient } from "@/lib/supabase"
+import { cache } from "react"
 import type {
   Chant,
   CompetitionCode,
@@ -282,7 +283,7 @@ function toHomePlayerRows(stats: PlayerStat[], metric: HomePlayerLeaderMetric) {
     }))
 }
 
-async function getLeagueData() {
+const getLeagueData = cache(async () => {
   const supabase = createPublicSupabaseClient()
   if (!supabase) {
     return {
@@ -349,7 +350,7 @@ async function getLeagueData() {
       leagueMatches: [] as LeagueMatch[],
     }
   }
-}
+})
 
 function getMonthLabel(matchDate: string) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -399,18 +400,7 @@ export async function getSchedulePageData(params?: {
     }
   }
 
-  const [{ data: seasonsData }, { data: primaryTeamData }] = await Promise.all([
-    supabase
-      .from("seasons")
-      .select("*")
-      .eq("is_active", true)
-      .order("is_current", { ascending: false })
-      .order("code", { ascending: false }),
-    supabase.from("teams").select("*").eq("is_primary", true).eq("is_active", true).limit(1).maybeSingle(),
-  ])
-
-  const seasons = (seasonsData ?? []) as Season[]
-  const primaryTeam = (primaryTeamData as Team | null) ?? null
+  const { seasons, primaryTeam } = await getActiveSeasonsAndPrimaryTeam()
   const selectedSeason =
     params?.season && seasons.some((season) => season.code === params.season)
       ? params.season
@@ -500,13 +490,8 @@ export async function getHomeStandingsData(seasonCode: string, leagueCode: Leagu
   const supabase = createPublicSupabaseClient()
   if (!supabase || !seasonCode) return [] as HomeLeagueStandingRow[]
 
-  const [{ data: seasonsData }, { data: primaryTeamData }] = await Promise.all([
-    supabase.from("seasons").select("*").eq("code", seasonCode).eq("is_active", true).limit(1).maybeSingle(),
-    supabase.from("teams").select("*").eq("is_primary", true).eq("is_active", true).limit(1).maybeSingle(),
-  ])
-
-  const season = (seasonsData as Season | null) ?? null
-  const primaryTeam = (primaryTeamData as Team | null) ?? null
+  const { seasons, primaryTeam } = await getActiveSeasonsAndPrimaryTeam()
+  const season = seasons.find((item) => item.code === seasonCode) ?? null
   if (!season) return [] as HomeLeagueStandingRow[]
 
   const [{ data: assignmentsData }, { data: matchesData }] = await Promise.all([
@@ -555,13 +540,8 @@ export async function getHomePlayerLeadersData(
     return [] as HomePlayerLeaderRow[]
   }
 
-  const [{ data: seasonsData }, { data: primaryTeamData }] = await Promise.all([
-    supabase.from("seasons").select("*").eq("code", seasonCode).eq("is_active", true).limit(1).maybeSingle(),
-    supabase.from("teams").select("*").eq("is_primary", true).eq("is_active", true).limit(1).maybeSingle(),
-  ])
-
-  const season = (seasonsData as Season | null) ?? null
-  const primaryTeam = (primaryTeamData as Team | null) ?? null
+  const { seasons, primaryTeam } = await getActiveSeasonsAndPrimaryTeam()
+  const season = seasons.find((item) => item.code === seasonCode) ?? null
   if (!season || !primaryTeam) return [] as HomePlayerLeaderRow[]
 
   const { data: rosterData } = await supabase
@@ -701,6 +681,37 @@ async function getHomeMatchLineup(
   }
 }
 
+const getActiveSeasonsAndPrimaryTeam = cache(async () => {
+  const supabase = createPublicSupabaseClient()
+  if (!supabase) {
+    return {
+      seasons: [] as Season[],
+      primaryTeam: null as Team | null,
+    }
+  }
+
+  const [{ data: seasonsData }, { data: primaryTeamData }] = await Promise.all([
+    supabase
+      .from("seasons")
+      .select("*")
+      .eq("is_active", true)
+      .order("is_current", { ascending: false })
+      .order("code", { ascending: false }),
+    supabase
+      .from("teams")
+      .select("*")
+      .eq("is_primary", true)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  return {
+    seasons: (seasonsData ?? []) as Season[],
+    primaryTeam: (primaryTeamData as Team | null) ?? null,
+  }
+})
+
 export async function getHomePageOverview(): Promise<HomePageOverview> {
   const supabase = createPublicSupabaseClient()
   if (!supabase) {
@@ -716,19 +727,8 @@ export async function getHomePageOverview(): Promise<HomePageOverview> {
     }
   }
 
-  const [{ data: seasonsData }, { data: primaryTeamData }] = await Promise.all([
-    supabase
-      .from("seasons")
-      .select("*")
-      .eq("is_active", true)
-      .order("is_current", { ascending: false })
-      .order("code", { ascending: false }),
-    supabase.from("teams").select("*").eq("is_primary", true).eq("is_active", true).limit(1).maybeSingle(),
-  ])
-
-  const seasons = (seasonsData ?? []) as Season[]
+  const { seasons, primaryTeam } = await getActiveSeasonsAndPrimaryTeam()
   const currentSeason = seasons[0] ?? null
-  const primaryTeam = (primaryTeamData as Team | null) ?? null
   if (!currentSeason || !primaryTeam) {
     return {
       currentSeason: currentSeason?.code ?? "",
@@ -825,18 +825,7 @@ export async function getSeasonArchiveData(params?: {
     }
   }
 
-  const [{ data: seasonsData }, { data: primaryTeamData }] = await Promise.all([
-    supabase
-      .from("seasons")
-      .select("*")
-      .eq("is_active", true)
-      .order("is_current", { ascending: false })
-      .order("code", { ascending: false }),
-    supabase.from("teams").select("*").eq("is_primary", true).eq("is_active", true).limit(1).maybeSingle(),
-  ])
-
-  const seasons = (seasonsData ?? []) as Season[]
-  const primaryTeam = (primaryTeamData as Team | null) ?? null
+  const { seasons, primaryTeam } = await getActiveSeasonsAndPrimaryTeam()
   const selectedSeason =
     params?.season && seasons.some((season) => season.code === params.season)
       ? params.season
