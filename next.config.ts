@@ -22,6 +22,7 @@ if (supabaseHostname) {
 const nextConfig: NextConfig = {
   images: {
     remotePatterns,
+    unoptimized: true,
   },
 };
 
