@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Black_Han_Sans, Noto_Sans_KR } from "next/font/google";
+import { unstable_cache } from "next/cache";
 import Script from "next/script";
 import { cookies } from "next/headers";
 
@@ -9,6 +10,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Team } from "@/types";
 
 import "./globals.css";
+
+export const preferredRegion = "icn1";
 
 const bodyFont = Noto_Sans_KR({
   variable: "--font-body",
@@ -22,13 +25,13 @@ const displayFont = Black_Han_Sans({
   weight: "400",
 });
 
-export async function generateMetadata(): Promise<Metadata> {
-  let primaryTeamLogoUrl: string | undefined;
+const getPrimaryTeamLogoUrl = unstable_cache(
+  async () => {
+    try {
+      const supabase = await createServerSupabaseClient();
 
-  try {
-    const supabase = await createServerSupabaseClient();
+      if (!supabase) return undefined;
 
-    if (supabase) {
       const { data } = await supabase
         .from("teams")
         .select("logo_url")
@@ -37,11 +40,17 @@ export async function generateMetadata(): Promise<Metadata> {
         .limit(1)
         .maybeSingle();
 
-      primaryTeamLogoUrl = (data as Pick<Team, "logo_url"> | null)?.logo_url ?? undefined;
+      return (data as Pick<Team, "logo_url"> | null)?.logo_url ?? undefined;
+    } catch {
+      return undefined;
     }
-  } catch {
-    primaryTeamLogoUrl = undefined;
-  }
+  },
+  ["primary-team-logo-url"],
+  { revalidate: 3600 },
+);
+
+export async function generateMetadata(): Promise<Metadata> {
+  const primaryTeamLogoUrl = await getPrimaryTeamLogoUrl();
 
   const images = primaryTeamLogoUrl ? [primaryTeamLogoUrl] : undefined;
 
